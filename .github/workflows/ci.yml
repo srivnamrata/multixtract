@@ -1,0 +1,154 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  # ── Primary test matrix (3.9–3.12, Ubuntu) ──────────────────────────────────
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install package + dev/test deps
+        run: pip install -e ".[dev,pdf,docx,pptx,xlsx]" pytest-cov
+
+      - name: Lint
+        run: ruff check src tests
+
+      - name: Compile check (syntax + import safety)
+        run: python -m compileall -q src examples
+
+      - name: Example import safety
+        run: |
+          python -c "import examples.usage_example; print('usage_example: import-safe')"
+          python -c "import examples.quickstart;   print('quickstart:    import-safe')"
+
+      - name: Test with coverage
+        run: pytest --cov=multixtract --cov-report=term-missing --cov-fail-under=62
+
+  # ── Cross-platform sanity check (3.11, all three OSes) ─────────────────────
+  # Catches path-separator bugs, missing system deps, and OS-specific import
+  # failures without duplicating the full Python-version matrix.
+  cross-platform:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install package + core extras
+        run: pip install -e ".[dev,pdf,docx,pptx,xlsx]" pytest
+
+      - name: Run tests
+        run: pytest --tb=short -q
+
+  # ── Provider import smoke tests ─────────────────────────────────────────────
+  # Validates that each optional extra installs cleanly and its public symbols
+  # are importable without a GPU, API key, or network call.
+  smoke-providers:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        extra:
+          - name: openai
+            import: "from multixtract.providers import OpenAIVisionModel, OpenAIEmbedder"
+          - name: azure
+            import: >-
+              from multixtract.providers import AzureOpenAIVisionModel,
+              AzureOpenAIEmbedder;
+              from multixtract.providers.storage import AzureBlobStore
+          - name: "pdf,docx,pptx,xlsx"
+            import: >-
+              from multixtract.extractors import (
+              PdfExtractor, DocxExtractor, PptxExtractor, ExcelExtractor)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install extra — ${{ matrix.extra.name }}
+        run: pip install -e ".[${{ matrix.extra.name }}]"
+
+      - name: Import smoke — ${{ matrix.extra.name }}
+        run: python -c "${{ matrix.extra.import }}"
+
+  # ── Dependency vulnerability scan ──────────────────────────────────────────
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Install package (all extras except heavy ML models)
+        run: pip install -e ".[pdf,docx,pptx,xlsx,openai,azure]"
+
+      - name: Run vulnerability audit
+        run: pip-audit --skip-editable --desc
+
+  # ── Build-from-sdist smoke test ─────────────────────────────────────────────
+  # Catches missing files, import errors, or metadata problems that only surface
+  # when installing from the published artifact rather than the editable tree.
+  build-sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Build sdist + wheel
+        run: python -m build
+
+      - name: Check dist artifacts
+        run: twine check dist/*
+
+      - name: Install from wheel in a clean venv
+        run: |
+          python -m venv /tmp/install-test
+          /tmp/install-test/bin/pip install dist/*.whl
+          /tmp/install-test/bin/python -c "
+          import multixtract
+          print('version:', multixtract.__version__)
+          from multixtract import extract_document, chunk_document, Pipeline
+          from multixtract.filters import ImageFilterPipeline
+          from multixtract.interfaces import VisionResult, PipelineConfig
+          print('core import: OK')
+          "

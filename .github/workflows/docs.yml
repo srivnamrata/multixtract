@@ -1,0 +1,23 @@
+name: Docs
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install docs deps
+        run: pip install "mkdocs-material>=9.5" "mkdocs-include-markdown-plugin>=6.0"
+
+      - name: Deploy to GitHub Pages
+        run: mkdocs gh-deploy --force

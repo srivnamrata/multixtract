@@ -1,0 +1,41 @@
+version: 2
+
+updates:
+  # Python dependencies — weekly scan, grouped by ecosystem
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      cloud-providers:
+        patterns:
+          - "openai"
+          - "azure-*"
+      ml-models:
+        patterns:
+          - "torch"
+          - "transformers"
+          - "accelerate"
+          - "einops"
+      document-parsers:
+        patterns:
+          - "PyMuPDF"
+          - "pdfplumber"
+          - "python-docx"
+          - "python-pptx"
+          - "openpyxl"
+    # Keep PRs manageable; security updates open immediately
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+
+  # GitHub Actions — keep action versions up to date
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "ci"

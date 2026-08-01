@@ -1,0 +1,95 @@
+[build-system]
+# Pin build deps so source/editable installs are reproducible everywhere. pathspec>=0.12
+# is required because hatchling reads .gitignore via pathspec.GitIgnoreSpec (added in 0.10);
+# some environments (e.g. DBR 13.3) ship pathspec 0.9 and break the editable build with
+# `module 'pathspec' has no attribute 'GitIgnoreSpec'`.
+requires = ["hatchling>=1.21", "pathspec>=0.12"]
+build-backend = "hatchling.build"
+
+[project]
+name = "multixtract"
+version = "0.1.1"
+description = "Vendor-neutral PDF/document extraction: text, tables, and vision-described images, chunked and embedded for search & RAG."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "Namrata Srivastava", email = "srivnamrata@yahoo.co.in" }]
+keywords = ["pdf", "extraction", "ocr", "vision", "embeddings", "rag", "chunking"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Text Processing",
+    "Topic :: Text Processing :: Indexing",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Environment :: Console",
+    "Operating System :: OS Independent",
+]
+
+# Core stays tiny: only the image-filter pipeline deps. Format parsers and
+# cloud SDKs are optional extras so users install only what they need.
+dependencies = [
+    "Pillow>=10.0",
+    "ImageHash>=4.3",
+]
+
+[project.optional-dependencies]
+# ── Per-format extractors (install only the formats you need) ──────────
+pdf = ["PyMuPDF>=1.23", "pdfplumber>=0.10"]
+docx = ["python-docx>=1.1"]
+pptx = ["python-pptx>=0.6.21"]
+xlsx = ["openpyxl>=3.1"]
+html = ["beautifulsoup4>=4.12"]
+rtf = ["striprtf>=0.0.26"]
+epub = ["ebooklib>=0.18", "beautifulsoup4>=4.12"]
+# Optional: decode JPEG-XR / HD Photo (.wdp) images embedded in pptx/xlsx.
+# EMF/WMF/SVG vector images additionally need a system LibreOffice install.
+imaging = ["imagecodecs>=2023.1.23"]
+# ── Local / offline vision model (heavy; CUDA GPU strongly recommended) ─
+# Upper bounds track tested major versions; bump after compatibility testing.
+llama = ["transformers>=4.45,<5.0", "torch>=2.1,<3.0", "accelerate>=0.27,<2.0"]
+# Qwen2.5-VL — recommended local model for document/chart understanding (2025)
+qwen2vl = ["transformers>=4.49,<5.0", "torch>=2.1,<3.0", "accelerate>=0.27,<2.0"]
+# SmolVLM — lightweight (2.2B) CPU-friendly alternative, no trust_remote_code
+smolvlm = ["transformers>=4.49,<5.0", "torch>=2.1,<3.0"]
+# ── Vendor providers ───────────────────────────────────────────────────
+openai = ["openai>=1.57.0,<2.0"]
+azure = ["openai>=1.57.0,<2.0", "azure-identity>=1.15,<2.0", "azure-storage-blob>=12.19,<13.0"]
+# ── Tooling ────────────────────────────────────────────────────────────
+dev = ["pytest>=7.4", "pytest-cov>=5.0", "ruff>=0.4", "build>=1.2", "twine>=5.0",
+       "mkdocs-material>=9.5", "mkdocs-include-markdown-plugin>=6.0"]
+# Everything: all formats + imaging + Azure provider.
+all = ["multixtract[pdf,docx,pptx,xlsx,html,rtf,epub,imaging,openai,azure,llama,qwen2vl,smolvlm]"]
+
+[project.urls]
+Homepage = "https://github.com/srivnamrata/multixtract"
+Documentation = "https://github.com/srivnamrata/multixtract#readme"
+Issues = "https://github.com/srivnamrata/multixtract/issues"
+Changelog = "https://github.com/srivnamrata/multixtract/blob/main/CHANGELOG.md"
+
+[project.scripts]
+multixtract = "multixtract.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/multixtract"]
+artifacts = ["src/multixtract/py.typed"]
+
+[tool.hatch.build.targets.sdist]
+# Be explicit so sdist builds are deterministic and don't depend on VCS (.gitignore)
+# file selection at build time.
+include = ["src/multixtract", "README.md", "LICENSE", "CHANGELOG.md"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
