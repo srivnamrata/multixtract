@@ -8,12 +8,9 @@ import sys
 import tempfile
 import textwrap
 import zlib
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-_SRC = str(Path(__file__).resolve().parent.parent / "src")
-if _SRC not in sys.path:
-    sys.path.insert(0, _SRC)
+import pytest
 
 from multixtract.extractors.text import TextExtractor
 from multixtract.extractors.markdown import MarkdownExtractor
@@ -162,6 +159,10 @@ class TestMarkdownExtractor:
 
 class TestHtmlExtractor:
     ext = HtmlExtractor()
+
+    @pytest.fixture(autouse=True)
+    def _skip(self):
+        pytest.importorskip("bs4")
 
     def test_basic_extraction(self):
         html = "<html><head><title>My Page</title></head><body><p>Hello</p></body></html>"

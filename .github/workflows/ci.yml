@@ -115,6 +115,9 @@ jobs:
       - name: Install package (all extras except heavy ML models)
         run: pip install -e ".[pdf,docx,pptx,xlsx,openai,azure]"
 
+      - name: Upgrade setuptools to patched version
+        run: pip install --upgrade "setuptools>=83.0.0"
+
       - name: Run vulnerability audit
         run: pip-audit --skip-editable --desc
 
