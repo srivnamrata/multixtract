@@ -301,9 +301,6 @@ target resource.
 If you see `ImportError` from `fitz`, ensure `PyMuPDF>=1.23` is installed.
 `pdfplumber` and `PyMuPDF` can coexist; both are required for the `[pdf]` extra.
 
-## Acknowledgements
-
-Built with assistance from [Claude](https://claude.ai) (Anthropic) for code review, bug analysis, and quality improvements.
 
 ## License
 

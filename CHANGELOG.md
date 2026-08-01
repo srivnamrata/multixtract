@@ -4,7 +4,7 @@ All notable changes to this project will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] — 2026-07-29
+## [0.1.1] — 2026-08-01
 
 ### Added
 
@@ -37,7 +37,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 **Vision providers** (local / offline)
 - `Qwen2VLVisionModel` — Qwen2.5-VL-7B/3B, recommended for document understanding (`[qwen2vl]`)
-- `SmolVLMVisionModel` — SmolVLM 2.2B, CPU-friendly, better accuracy than Moondream2 (`[smolvlm]`)
+- `SmolVLMVisionModel` — SmolVLM 2.2B, CPU-friendly (`[smolvlm]`)
 - `Llama32VisionModel` — Llama 3.2 Vision 11B/90B (`[llama]`)
 
 **Embedding providers**
