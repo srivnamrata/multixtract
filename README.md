@@ -1,5 +1,9 @@
 # multixtract
 
+[![PyPI](https://img.shields.io/pypi/v/multixtract)](https://pypi.org/project/multixtract/)
+[![Python](https://img.shields.io/pypi/pyversions/multixtract)](https://pypi.org/project/multixtract/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Vendor-neutral document extraction for search & RAG. Pull **text, tables, and images** out of PDFs, Word, PowerPoint, and Excel/CSV files, let any **vision model** describe the images, **chunk** everything into bite-size pieces, **embed** them, and store the result anywhere.
 
 The core is tiny (just `Pillow` + `ImageHash`). Every **format parser** and every **cloud SDK** is an **optional extra** — install only what you need and plug in OpenAI, Azure OpenAI, a local model, Azure Blob, S3, or local disk.
