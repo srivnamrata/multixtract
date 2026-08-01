@@ -8,7 +8,6 @@ from PIL import Image
 
 from multixtract.vision import parse_vision_response, to_data_url
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

@@ -39,8 +39,8 @@ sys.modules.setdefault("PIL.Image", _pil_mock.Image)
 # ---------------------------------------------------------------------------
 # 3. Now it is safe to import from the local multixtract source.
 # ---------------------------------------------------------------------------
-from multixtract.extractors.pdf import PdfExtractor               # noqa: E402
-from multixtract.extractors.docx import _build_pages_from_body    # noqa: E402
+from multixtract.extractors.docx import _build_pages_from_body  # noqa: E402
+from multixtract.extractors.pdf import PdfExtractor  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Shared namespace constants (mirrors the ones in docx.py)
@@ -822,11 +822,12 @@ def _run_convert(src_basename: str, actual_output_name: str, fmt: str = "docx"):
         mock_proc.returncode = 0
         mock_proc.stderr = ""
 
-        with patch("multixtract.extractors.legacy.find_libreoffice", return_value="/usr/bin/soffice"), \
-             patch("subprocess.run", return_value=mock_proc):
-            result = convert_with_libreoffice(
-                os.path.join("/fake", src_basename), f".{fmt}", tmp
-            )
+        _lo = "multixtract.extractors.legacy.find_libreoffice"
+        with patch(_lo, return_value="/usr/bin/soffice"):
+            with patch("subprocess.run", return_value=mock_proc):
+                result = convert_with_libreoffice(
+                    os.path.join("/fake", src_basename), f".{fmt}", tmp
+                )
 
     return result
 
@@ -838,7 +839,7 @@ def test_legacy_convert_exact_name_works():
 
 
 def test_legacy_convert_spaces_normalized_to_underscores():
-    """LibreOffice replaces spaces with underscores; convert_with_libreoffice must find it (Bug 13)."""
+    """LibreOffice replaces spaces with underscores; convert_with_libreoffice must find it (Bug 13)."""  # noqa: E501
     result = _run_convert("my report.doc", "my_report.docx")
     assert os.path.basename(result) == "my_report.docx", (
         "When LibreOffice normalizes spaces to underscores, the returned path must "
@@ -989,8 +990,8 @@ def test_pipeline_empty_vision_result_not_embedded():
     `if vision_by_id.get(image_id):` evaluates True even when there is no
     actual content. The fix must check `vr.best_text()` instead.
     """
-    from multixtract.pipeline import Pipeline
     from multixtract.interfaces import VisionResult
+    from multixtract.pipeline import Pipeline
 
     pipeline = Pipeline()
 
@@ -1023,10 +1024,11 @@ def test_legacy_convert_no_output_file_raises():
         mock_proc.returncode = 0
         mock_proc.stderr = ""
 
-        with patch("multixtract.extractors.legacy.find_libreoffice", return_value="/usr/bin/soffice"), \
-             patch("subprocess.run", return_value=mock_proc):
-            try:
-                convert_with_libreoffice(os.path.join("/fake", "report.doc"), ".docx", tmp)
-                assert False, "Must raise RuntimeError when no output file exists"
-            except RuntimeError:
-                pass  # expected
+        _lo = "multixtract.extractors.legacy.find_libreoffice"
+        with patch(_lo, return_value="/usr/bin/soffice"):
+            with patch("subprocess.run", return_value=mock_proc):
+                try:
+                    convert_with_libreoffice(os.path.join("/fake", "report.doc"), ".docx", tmp)
+                    assert False, "Must raise RuntimeError when no output file exists"
+                except RuntimeError:
+                    pass  # expected

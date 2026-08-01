@@ -61,7 +61,7 @@ class OpenAIVisionModel(VisionModel):
         self.max_tokens = max_tokens
         self.temperature = temperature
 
-    def analyze(self, image_bytes: bytes, ext: str = "png", width: int = 0, height: int = 0) -> VisionResult:
+    def analyze(self, image_bytes: bytes, ext: str = "png", width: int = 0, height: int = 0) -> VisionResult:  # noqa: E501
         try:
             data_url = to_data_url(image_bytes, ext, width, height)
             resp = _retry(
@@ -107,7 +107,7 @@ class OpenAIEmbedder(Embedder):
 
     def embed(self, texts: List[str]) -> List[Optional[List[float]]]:
         results: List[Optional[List[float]]] = [None] * len(texts)
-        work = [(original_index, text[: self.text_limit]) for original_index, text in enumerate(texts) if text]
+        work = [(original_index, text[: self.text_limit]) for original_index, text in enumerate(texts) if text]  # noqa: E501
         for start in range(0, len(work), self.batch_size):
             batch = work[start : start + self.batch_size]
             inputs = [text for _, text in batch]

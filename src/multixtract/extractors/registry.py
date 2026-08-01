@@ -26,7 +26,9 @@ class ExtractorRegistry:
     def __init__(self) -> None:
         self._by_ext: Dict[str, DocumentExtractor] = {}
 
-    def register(self, extractor: DocumentExtractor, extensions: Iterable[str] | None = None) -> DocumentExtractor:
+    def register(  # noqa: E501
+        self, extractor: DocumentExtractor, extensions: Iterable[str] | None = None
+    ) -> DocumentExtractor:
         """Register *extractor* for the given *extensions* (defaults to the
         extractor's own ``extensions`` attribute). Later registrations for the
         same extension win, so users can override built-ins."""
@@ -62,7 +64,9 @@ def _norm(ext: str) -> str:
 default_registry = ExtractorRegistry()
 
 
-def register_extractor(extractor: DocumentExtractor, extensions: Iterable[str] | None = None) -> DocumentExtractor:
+def register_extractor(
+    extractor: DocumentExtractor, extensions: Iterable[str] | None = None
+) -> DocumentExtractor:
     """Register *extractor* on the process-wide default registry."""
     return default_registry.register(extractor, extensions)
 

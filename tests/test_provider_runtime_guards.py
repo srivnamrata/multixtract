@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from multixtract.providers import llama, smolvlm, qwen2vl
+from multixtract.providers import llama, qwen2vl, smolvlm
 
 
 def test_llama_reused_model_uses_module_device_helper():

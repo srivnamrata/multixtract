@@ -23,7 +23,7 @@ def main() -> None:
     parser.add_argument("file", help="Path to the input document.")
     parser.add_argument("-o", "--out", default="./output_folder", help="Output folder.")
     parser.add_argument("--openai-key", default=os.getenv("OPENAI_API_KEY", ""),
-                        help="OpenAI API key. If omitted, runs extraction-only (no vision/embeddings).")
+                        help="OpenAI API key. If omitted, runs extraction-only (no vision/embeddings).")  # noqa: E501
     parser.add_argument("--vision-model", default="gpt-4o")
     parser.add_argument("--embed-model", default="text-embedding-3-large")
     parser.add_argument("-v", "--verbose", action="store_true")

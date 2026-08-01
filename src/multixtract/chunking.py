@@ -122,7 +122,7 @@ def table_to_markdown(table: List[List[Optional[str]]]) -> str:
         while len(cells) < len(header):
             cells.append("")
         if len(cells) > len(header):
-            log.debug("table row has %d cells but header has %d; truncating", len(cells), len(header))
+            log.debug("table row has %d cells but header has %d; truncating", len(cells), len(header))  # noqa: E501
         lines.append("| " + " | ".join(cells[:len(header)]) + " |")
     return "\n".join(lines)
 
@@ -245,7 +245,8 @@ def chunk_document(
         # ── Legacy path (docx / pptx / xlsx: txt + tables) ────────────────────
         else:
             text_splits = [
-                s for s in split_text_into_chunks(page.get("txt") or "", target_tokens, overlap_tokens)
+                s for s in split_text_into_chunks(  # noqa: E501
+                    page.get("txt") or "", target_tokens, overlap_tokens)
                 if estimate_tokens(s) >= CHUNK_MIN_TOKENS
             ]
             for split_index, content in enumerate(text_splits):

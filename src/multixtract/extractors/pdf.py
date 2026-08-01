@@ -189,7 +189,7 @@ class PdfExtractor:
         doc_fitz = None
 
         try:
-            with pdfplumber.open(path) as pdf:  # raises FileNotFoundError/PDFSyntaxError on bad path
+            with pdfplumber.open(path) as pdf:  # raises FileNotFoundError/PDFSyntaxError on bad path  # noqa: E501
                 _raw_meta = dict(pdf.metadata or {})
                 doc_fitz = fitz.open(path)
 

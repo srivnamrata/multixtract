@@ -39,7 +39,7 @@ def _assert_page_schema(page: dict) -> None:
 
 
 def _assert_prepared_schema(img: dict) -> None:
-    for key in ("image_id", "image_bytes", "ext", "width", "height", "page_number", "img_idx", "img_path"):
+    for key in ("image_id", "image_bytes", "ext", "width", "height", "page_number", "img_idx", "img_path"):  # noqa: E501
         assert key in img, f"prepared image missing key: {key!r}"
     assert isinstance(img["image_bytes"], bytes)
     assert isinstance(img["width"], int)
@@ -88,8 +88,8 @@ class TestPdfExtractor:
         assert prepared == []
 
     def test_registered(self):
-        from multixtract.extractors.registry import default_registry
         from multixtract.extractors.pdf import PdfExtractor
+        from multixtract.extractors.registry import default_registry
         assert isinstance(default_registry.get("file.pdf"), PdfExtractor)
 
 
@@ -144,8 +144,8 @@ class TestDocxExtractor:
         assert prepared == []
 
     def test_registered(self):
-        from multixtract.extractors.registry import default_registry
         from multixtract.extractors.docx import DocxExtractor
+        from multixtract.extractors.registry import default_registry
         assert isinstance(default_registry.get("file.docx"), DocxExtractor)
 
 
@@ -192,8 +192,8 @@ class TestPptxExtractor:
         assert prepared == []
 
     def test_registered(self):
-        from multixtract.extractors.registry import default_registry
         from multixtract.extractors.pptx import PptxExtractor
+        from multixtract.extractors.registry import default_registry
         assert isinstance(default_registry.get("file.pptx"), PptxExtractor)
 
 
@@ -249,8 +249,8 @@ class TestExcelExtractor:
         assert prepared == []
 
     def test_registered(self):
-        from multixtract.extractors.registry import default_registry
         from multixtract.extractors.excel import ExcelExtractor
+        from multixtract.extractors.registry import default_registry
         assert isinstance(default_registry.get("file.xlsx"), ExcelExtractor)
         assert isinstance(default_registry.get("file.csv"), ExcelExtractor)
 
@@ -351,6 +351,6 @@ class TestEpubExtractor:
         assert prepared == []
 
     def test_registered(self):
-        from multixtract.extractors.registry import default_registry
         from multixtract.extractors.epub import EpubExtractor
+        from multixtract.extractors.registry import default_registry
         assert isinstance(default_registry.get("file.epub"), EpubExtractor)

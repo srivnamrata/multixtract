@@ -102,7 +102,7 @@ class ImageFilterPipeline:
     # ---- content quality -------------------------------------------------
 
     def _is_low_value(self, small, small_nearest) -> Tuple[bool, str]:
-        if max(channel_max - channel_min for channel_min, channel_max in small.getextrema()) < self.SOLID_RANGE_MAX:
+        if max(channel_max - channel_min for channel_min, channel_max in small.getextrema()) < self.SOLID_RANGE_MAX:  # noqa: E501
             return True, "solid_color"
         if small_nearest is not None:
             try:
@@ -147,7 +147,7 @@ class ImageFilterPipeline:
                 self._filter_stats["ref_logo"] += 1
                 return None
 
-            if max(width, height) < self.min_image_size or min(width, height) < self.min_image_size_minor:
+            if max(width, height) < self.min_image_size or min(width, height) < self.min_image_size_minor:  # noqa: E501
                 self._filter_stats["dimension"] += 1
                 return None
 

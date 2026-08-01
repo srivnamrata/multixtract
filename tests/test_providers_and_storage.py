@@ -18,7 +18,6 @@ from multixtract.interfaces import VisionResult
 from multixtract.providers.openai import OpenAIEmbedder, OpenAIVisionModel, _is_permanent, _retry
 from multixtract.providers.storage import LocalDiskStore
 
-
 # ---------------------------------------------------------------------------
 # _retry helpers
 # ---------------------------------------------------------------------------
@@ -200,6 +199,7 @@ def _make_azure_store(prefix: str = ""):
     resolves without the real SDK installed.
     """
     from types import ModuleType
+
     from multixtract.providers.storage import AzureBlobStore
 
     mock_blob_client = MagicMock()

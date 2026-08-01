@@ -343,7 +343,7 @@ class DocxExtractor:
                         with Image.open(io.BytesIO(image_bytes)) as image:
                             width, height = image.size
                     except Exception as exc:
-                        log.debug("image decode failed for %s in %s: %s", media_path, base_name, exc)
+                        log.debug("image decode failed for %s in %s: %s", media_path, base_name, exc)  # noqa: E501
                         continue
 
                     pg_num = media_to_page.get(media_path, 1)

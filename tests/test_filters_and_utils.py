@@ -9,7 +9,6 @@ from PIL import Image
 from multixtract.filters import ImageFilterPipeline
 from multixtract.providers._utils import _infer_device, _open_image_rgb
 
-
 # ---------------------------------------------------------------------------
 # Helpers — build synthetic images in memory
 # ---------------------------------------------------------------------------
@@ -91,7 +90,7 @@ def test_filter_returned_dict_has_required_keys():
     data = _make_varied_png(300, 200)
     result = filt.prepare_image(data, "png", 300, 200, "my_img", 3, 2)
     assert result is not None
-    for key in ("image_id", "page_number", "img_idx", "image_bytes", "ext", "width", "height", "img_path"):
+    for key in ("image_id", "page_number", "img_idx", "image_bytes", "ext", "width", "height", "img_path"):  # noqa: E501
         assert key in result, f"missing key: {key}"
     assert result["page_number"] == 3
     assert result["img_idx"] == 2
@@ -217,7 +216,7 @@ def test_batch_convert_returns_empty_on_nonzero_returncode(tmp_path):
     mock_proc.returncode = 1
     mock_proc.stderr = "soffice: fatal error"
 
-    with patch("multixtract.extractors._image_utils.find_libreoffice", return_value="/usr/bin/soffice"):
+    with patch("multixtract.extractors._image_utils.find_libreoffice", return_value="/usr/bin/soffice"):  # noqa: E501
         with patch("multixtract.extractors._image_utils.subprocess.run", return_value=mock_proc):
             with patch("multixtract.extractors._image_utils.log") as mock_log:
                 result = batch_convert_vectors_to_png(vector_items, timeout=5)
@@ -225,7 +224,7 @@ def test_batch_convert_returns_empty_on_nonzero_returncode(tmp_path):
     assert result == {}
     mock_log.warning.assert_called_once()
     warning_msg = mock_log.warning.call_args[0][0]
-    assert "failed" in warning_msg.lower() or "%d" in warning_msg  # log line contains exit code slot
+    assert "failed" in warning_msg.lower() or "%d" in warning_msg  # log line contains exit code slot  # noqa: E501
 
 
 def test_batch_convert_returns_empty_when_libreoffice_not_found():
@@ -238,9 +237,10 @@ def test_batch_convert_returns_empty_when_libreoffice_not_found():
 
 def test_batch_convert_returns_empty_on_timeout():
     import subprocess
+
     from multixtract.extractors._image_utils import batch_convert_vectors_to_png
 
-    with patch("multixtract.extractors._image_utils.find_libreoffice", return_value="/usr/bin/soffice"):
+    with patch("multixtract.extractors._image_utils.find_libreoffice", return_value="/usr/bin/soffice"):  # noqa: E501
         with patch("multixtract.extractors._image_utils.subprocess.run",
                    side_effect=subprocess.TimeoutExpired(cmd="soffice", timeout=1)):
             with patch("multixtract.extractors._image_utils.log") as mock_log:

@@ -12,11 +12,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from multixtract.extractors.text import TextExtractor
-from multixtract.extractors.markdown import MarkdownExtractor
-from multixtract.extractors.html import HtmlExtractor
 from multixtract.extractors.eml import EmlExtractor
+from multixtract.extractors.html import HtmlExtractor
 from multixtract.extractors.image import ImageExtractor
+from multixtract.extractors.markdown import MarkdownExtractor
+from multixtract.extractors.text import TextExtractor
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -191,7 +191,7 @@ class TestHtmlExtractor:
         assert "Clean" in doc["pgs"][0]["txt"]
 
     def test_table_parsed(self):
-        html = "<body><table><tr><th>X</th><th>Y</th></tr><tr><td>1</td><td>2</td></tr></table></body>"
+        html = "<body><table><tr><th>X</th><th>Y</th></tr><tr><td>1</td><td>2</td></tr></table></body>"  # noqa: E501
         with tempfile.TemporaryDirectory() as tmp:
             path = _write(tmp, "f.html", html)
             doc, _ = self.ext.extract(path)
@@ -430,8 +430,8 @@ class TestRegistration:
         assert isinstance(e, EmlExtractor)
 
     def test_odt_odp_ods_xls_registered(self):
-        from multixtract.extractors.registry import default_registry
         from multixtract.extractors.legacy import ConvertingExtractor
+        from multixtract.extractors.registry import default_registry
         for ext in (".odt", ".odp", ".ods", ".xls"):
             e = default_registry.get(f"file{ext}")
             assert isinstance(e, ConvertingExtractor)

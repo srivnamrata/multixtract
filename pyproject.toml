@@ -91,5 +91,8 @@ include = ["src/multixtract", "README.md", "LICENSE", "CHANGELOG.md"]
 line-length = 100
 target-version = "py39"
 
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

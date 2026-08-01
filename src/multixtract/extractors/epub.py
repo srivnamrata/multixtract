@@ -48,8 +48,8 @@ class EpubExtractor:
         empty = {"_base_name": base_name, "metadata": {}, "pgs": []}
         try:
             import ebooklib
-            from ebooklib import epub
             from bs4 import BeautifulSoup
+            from ebooklib import epub
         except ImportError as exc:
             raise ImportError(
                 "EPUB support requires ebooklib and beautifulsoup4: "
@@ -67,7 +67,9 @@ class EpubExtractor:
             pages = []
             pg_num = 0
             for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
-                if os.path.basename(item.get_name()).lower() in {"nav.xhtml", "nav.html", "toc.xhtml"}:
+                if os.path.basename(item.get_name()).lower() in {  # noqa: E501
+                    "nav.xhtml", "nav.html", "toc.xhtml"
+                }:
                     continue
                 content = item.get_content()
                 if not content:

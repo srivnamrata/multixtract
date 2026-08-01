@@ -171,7 +171,7 @@ class Pipeline:
         all_vectors = self.embedder.embed(list(texts))
         return {i: v for i, v in zip(ids, all_vectors) if v is not None}
 
-    def _assemble_images(self, document, prepared, vision_by_id, image_embeds) -> List[Dict[str, Any]]:
+    def _assemble_images(self, document, prepared, vision_by_id, image_embeds) -> List[Dict[str, Any]]:  # noqa: E501
         image_index: List[Dict[str, Any]] = []
         pages_by_num = {page["pg_num"]: page for page in document.get("pgs", [])}
         for img in prepared:
@@ -213,7 +213,7 @@ class Pipeline:
     def _embed_chunks(self, chunks: List[Dict[str, Any]]) -> None:
         if self.embedder is None or not chunks:
             return
-        pending = [(chunk_index, chunk) for chunk_index, chunk in enumerate(chunks) if chunk["embedding"] is None]
+        pending = [(chunk_index, chunk) for chunk_index, chunk in enumerate(chunks) if chunk["embedding"] is None]  # noqa: E501
         if not pending:
             return
 

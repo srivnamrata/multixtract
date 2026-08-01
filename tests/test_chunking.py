@@ -59,7 +59,7 @@ def test_chunk_document_types_and_ids():
             }
         ],
     }
-    chunks = chunk_document(document, base_name="doc", image_embeddings={"page_1_img_0": [0.1, 0.2]})
+    chunks = chunk_document(document, base_name="doc", image_embeddings={"page_1_img_0": [0.1, 0.2]})  # noqa: E501
     types = {c["chunk_type"] for c in chunks}
     assert {"text", "table", "image"} <= types
     # Deterministic ids.

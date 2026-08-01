@@ -9,7 +9,6 @@ from PIL import Image
 from multixtract.interfaces import PipelineConfig, VisionResult
 from multixtract.pipeline import ExtractionResult, Pipeline
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

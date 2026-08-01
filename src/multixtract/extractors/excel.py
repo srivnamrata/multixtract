@@ -178,7 +178,7 @@ class ExcelExtractor:
             return empty, []
 
     # ------------------------------------------------------------------ CSV
-    def _extract_csv(self, path: str, base_name: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    def _extract_csv(self, path: str, base_name: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:  # noqa: E501
         with open(path, "r", encoding="utf-8", errors="replace", newline="") as f:
             sample = f.read(8192)
             f.seek(0)

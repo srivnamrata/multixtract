@@ -25,7 +25,8 @@ from .interfaces import (
 from .pipeline import ExtractionResult, Pipeline
 
 try:
-    from importlib.metadata import version as _version, PackageNotFoundError as _PackageNotFoundError
+    from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
+    from importlib.metadata import version as _version
     __version__ = _version("multixtract")
 except _PackageNotFoundError:
     __version__ = "0.1.1"

@@ -6,33 +6,33 @@ when this package is imported. To support a new format, implement the
 :func:`register_extractor`.
 """
 from .docx import DocxExtractor
-from .pptx import PptxExtractor
-from .excel import ExcelExtractor
-from .image import ImageExtractor
-from .text import TextExtractor
-from .markdown import MarkdownExtractor
-from .html import HtmlExtractor
 from .eml import EmlExtractor
-from .rtf import RtfExtractor
 from .epub import EpubExtractor
+from .excel import ExcelExtractor
+from .html import HtmlExtractor
+from .image import ImageExtractor
 from .legacy import (
     ConvertingExtractor,
-    legacy_doc_extractor,
-    legacy_ppt_extractor,
-    legacy_odt_extractor,
-    legacy_odp_extractor,
-    legacy_ods_extractor,
-    legacy_xls_extractor,
     convert_with_libreoffice,
     find_libreoffice,
+    legacy_doc_extractor,
+    legacy_odp_extractor,
+    legacy_ods_extractor,
+    legacy_odt_extractor,
+    legacy_ppt_extractor,
+    legacy_xls_extractor,
 )
+from .markdown import MarkdownExtractor
 from .pdf import PdfExtractor
+from .pptx import PptxExtractor
 from .registry import (
     ExtractorRegistry,
     default_registry,
     get_extractor,
     register_extractor,
 )
+from .rtf import RtfExtractor
+from .text import TextExtractor
 
 # ---- Register built-in extractors -----------------------------------------
 register_extractor(PdfExtractor())
