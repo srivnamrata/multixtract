@@ -1,0 +1,46 @@
+site_name: multixtract
+site_description: Vendor-neutral document extraction for search & RAG
+site_url: https://srivnamrata.github.io/multixtract
+repo_url: https://github.com/srivnamrata/multixtract
+repo_name: srivnamrata/multixtract
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - content.code.copy
+    - toc.integrate
+
+nav:
+  - Home: index.md
+  - Usage Guide: usage.md
+  - API Reference: api.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+  - include-markdown

@@ -1,0 +1,59 @@
+name: Bug report
+description: Something isn't working correctly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, please search open issues to avoid duplicates.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal code or command that triggers the issue.
+      placeholder: |
+        from multixtract import Pipeline
+        result = Pipeline().process("file.pdf")
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Output of `pip show multixtract` and `python --version`.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: extras
+    attributes:
+      label: Extras installed
+      multiple: true
+      options:
+        - pdf
+        - docx
+        - pptx
+        - xlsx
+        - openai
+        - azure
+        - llama
+        - qwen2vl
+        - smolvlm
+        - none (core only)

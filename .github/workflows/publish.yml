@@ -1,0 +1,112 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  # ── 1. Build sdist + wheel ─────────────────────────────────────────────────
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write      # required for artifact attestation below
+      attestations: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+
+      # Sign the artifacts with GitHub's SLSA-style provenance attestation.
+      # The attestation is uploaded to the release and verifiable via:
+      #   gh attestation verify dist/*.whl --owner <org>
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: dist/*
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  # ── 2. Verify artifacts before they leave our hands ───────────────────────
+  verify:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install twine
+        run: pip install twine
+
+      - name: Check dist metadata (twine check)
+        # Validates PKG-INFO, long-description rendering, and wheel structure.
+        run: twine check --strict dist/*
+
+      - name: Install wheel in a clean venv
+        run: |
+          python -m venv /tmp/verify-venv
+          /tmp/verify-venv/bin/pip install dist/*.whl
+
+      - name: Smoke-test import
+        run: |
+          /tmp/verify-venv/bin/python -c "
+          import multixtract
+          print('version:', multixtract.__version__)
+          from multixtract import extract_document, chunk_document, Pipeline
+          from multixtract.filters import ImageFilterPipeline
+          from multixtract.interfaces import VisionResult, PipelineConfig
+          print('core import: OK')
+          "
+
+      - name: Smoke-test CLI entry-point
+        run: /tmp/verify-venv/bin/multixtract --version
+
+      - name: Verify version tag matches package version
+        # Guard against tagging v1.0.0 while pyproject.toml still says 0.9.0.
+        run: |
+          PKG_VER=$(/tmp/verify-venv/bin/python -c "import multixtract; print(multixtract.__version__)")
+          TAG_VER="${{ github.event.release.tag_name }}"
+          # Strip a leading 'v' from the tag (e.g. v1.0.0 → 1.0.0)
+          TAG_VER="${TAG_VER#v}"
+          echo "Package version : $PKG_VER"
+          echo "Release tag     : $TAG_VER"
+          if [ "$PKG_VER" != "$TAG_VER" ]; then
+            echo "ERROR: version mismatch — package says $PKG_VER but tag is $TAG_VER"
+            exit 1
+          fi
+          echo "Version check passed."
+
+  # ── 3. Publish — only runs if verify succeeds ─────────────────────────────
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # Trusted publishing — no API token needed
+
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
