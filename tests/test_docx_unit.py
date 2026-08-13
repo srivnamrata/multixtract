@@ -9,7 +9,7 @@ def test_split_para_at_lrpb_splits_correctly():
     p = ET.Element(f"{{{ns}}}p")
     t1 = ET.SubElement(p, f"{{{ns}}}t")
     t1.text = "Before"
-    br = ET.SubElement(p, f"{{{ns}}}lastRenderedPageBreak")
+    ET.SubElement(p, f"{{{ns}}}lastRenderedPageBreak")
     t2 = ET.SubElement(p, f"{{{ns}}}t")
     t2.text = "After"
 

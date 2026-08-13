@@ -1,30 +1,25 @@
 import io
+import sys
+import types
+from contextlib import contextmanager
 from types import SimpleNamespace
 
-import pytest
-
-from multixtract.providers import (
-    LocalDiskStore,
-    AzureBlobStore,
-)
-from multixtract.providers.openai import OpenAIVisionModel, OpenAIEmbedder
-from multixtract.providers.azure import AzureOpenAIVisionModel, AzureOpenAIEmbedder
+from multixtract.providers import AzureBlobStore, LocalDiskStore
+from multixtract.providers.azure import AzureOpenAIEmbedder, AzureOpenAIVisionModel
 from multixtract.providers.llama import Llama32VisionModel
+from multixtract.providers.openai import OpenAIEmbedder, OpenAIVisionModel
 
 
 def test_local_disk_store_put_and_exists(tmp_path):
     root = tmp_path / "store"
     store = LocalDiskStore(str(root))
-    path = store.put_bytes("file.bin", b"data")
+    store.put_bytes("file.bin", b"data")
     assert store.exists("file.bin")
-    json_path = store.put_json("obj.json", {"a": 1}, compact=True)
+    store.put_json("obj.json", {"a": 1}, compact=True)
     assert store.exists("obj.json")
 
 
 def test_azure_blob_store_with_fake_client(monkeypatch):
-    import sys
-    import types
-    # Provide real module entries for azure.storage.blob.ContentSettings
     blob_mod = types.ModuleType("azure.storage.blob")
     blob_mod.ContentSettings = lambda content_type=None: None
     storage_mod = types.ModuleType("azure.storage")
@@ -34,6 +29,7 @@ def test_azure_blob_store_with_fake_client(monkeypatch):
     monkeypatch.setitem(sys.modules, "azure", azure_mod)
     monkeypatch.setitem(sys.modules, "azure.storage", storage_mod)
     monkeypatch.setitem(sys.modules, "azure.storage.blob", blob_mod)
+
     class FakeBlobClient:
         def __init__(self):
             self._data = None
@@ -59,17 +55,21 @@ def test_azure_blob_store_with_fake_client(monkeypatch):
 
 
 def test_openai_vision_and_embedder_with_fake_client():
-    # Fake vision client
-    class FakeChat:
-        def __init__(self):
-            self.completions = SimpleNamespace(create=lambda **kwargs: SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=(
-                "CAPTION: Fake\nOCR_TEXT: NONE\nDESCRIPTION: Desc"
-            )))]))
+    def _vision_response(**kwargs):
+        content = "CAPTION: Fake\nOCR_TEXT: NONE\nDESCRIPTION: Desc"
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
+        )
+
+    def _embed_response(**kwargs):
+        return SimpleNamespace(data=[SimpleNamespace(embedding=[0.1, 0.2])])
 
     class FakeClient:
         def __init__(self):
-            self.chat = FakeChat()
-            self.embeddings = SimpleNamespace(create=lambda **kwargs: SimpleNamespace(data=[SimpleNamespace(embedding=[0.1, 0.2])]))
+            self.chat = SimpleNamespace(
+                completions=SimpleNamespace(create=_vision_response)
+            )
+            self.embeddings = SimpleNamespace(create=_embed_response)
 
     client = FakeClient()
     vision = OpenAIVisionModel(client=client)
@@ -82,13 +82,21 @@ def test_openai_vision_and_embedder_with_fake_client():
 
 
 def test_azure_providers_monkeypatched(monkeypatch):
-    # Replace internal _azure_client to return a fake client used above
+    def _vision_response(**kwargs):
+        content = "CAPTION: A\nOCR_TEXT: NONE\nDESCRIPTION: D"
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
+        )
+
+    def _embed_response(**kwargs):
+        return SimpleNamespace(data=[SimpleNamespace(embedding=[0.3, 0.4])])
+
     def fake_azure_client(endpoint, api_key, api_version, azure_ad_token_provider=None):
         return SimpleNamespace(
-            chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **kwargs: SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=(
-                "CAPTION: A\nOCR_TEXT: NONE\nDESCRIPTION: D"
-            )))]))),
-            embeddings=SimpleNamespace(create=lambda **kwargs: SimpleNamespace(data=[SimpleNamespace(embedding=[0.3, 0.4])])),
+            chat=SimpleNamespace(
+                completions=SimpleNamespace(create=_vision_response)
+            ),
+            embeddings=SimpleNamespace(create=_embed_response),
         )
 
     monkeypatch.setattr("multixtract.providers.azure._azure_client", fake_azure_client)
@@ -101,18 +109,25 @@ def test_azure_providers_monkeypatched(monkeypatch):
     assert out[0]
 
 
-def test_llama_with_fake_model_processor(tmp_path):
-    # Minimal fake processor/model to exercise analyze path
+def test_llama_with_fake_model_processor():
+    # inputs must be a real dict so **inputs works in model.generate()
+    class FakeInputs(dict):
+        def to(self, device):
+            return self
+
     class FakeProcessor:
         def apply_chat_template(self, messages, add_generation_prompt=False):
             return "PROMPT"
 
         def __call__(self, image, input_text, return_tensors=None):
-            class T:
-                def to(self, device):
-                    return SimpleNamespace(**{"input_ids": [[0, 1]], "shape": (1, 2)})
-
-            return T()
+            import numpy as np  # noqa: F401 — used to build shape-compatible object
+            inputs = FakeInputs({"input_ids": [[0, 1]]})
+            # shape[-1] must work: wrap input_ids in an object with .shape
+            inputs["input_ids"] = SimpleNamespace(
+                shape=(-1, 2),
+                __getitem__=lambda self, idx: [0],
+            )
+            return inputs
 
         def decode(self, ids, skip_special_tokens=True):
             return "CAPTION: c\nOCR_TEXT: NONE\nDESCRIPTION: d"
@@ -120,21 +135,15 @@ def test_llama_with_fake_model_processor(tmp_path):
     class FakeModel:
         device = "cpu"
 
-        def generate(self, **kwargs):
+        def generate(self, input_ids, max_new_tokens=None, do_sample=False):
             return [[0, 1, 2]]
 
-    # Create a tiny PNG bytes object
     from PIL import Image
 
     img = Image.new("RGB", (1, 1), color=(255, 255, 255))
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     data = buf.getvalue()
-
-    model = FakeModel()
-    proc = FakeProcessor()
-    import sys
-    from contextlib import contextmanager
 
     fake_torch = SimpleNamespace()
 
@@ -146,6 +155,6 @@ def test_llama_with_fake_model_processor(tmp_path):
     fake_torch.float32 = None
     sys.modules.setdefault("torch", fake_torch)
 
-    ll = Llama32VisionModel(model=model, processor=proc)
+    ll = Llama32VisionModel(model=FakeModel(), processor=FakeProcessor())
     res = ll.analyze(data, ext="png")
     assert res.caption or res.description

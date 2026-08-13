@@ -9,15 +9,12 @@ Targets uncovered lines from the 78% baseline:
 from __future__ import annotations
 
 import io
-import subprocess
 import sys
 import types
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 _SRC = str(Path(__file__).resolve().parent.parent / "src")
 if _SRC not in sys.path:
@@ -59,6 +56,7 @@ class TestImageUtilsBranches:
     def test_ensure_rgb_png_converts_non_rgb(self):
         """ensure_rgb_png must re-encode a palette PNG to RGB."""
         from PIL import Image
+
         from multixtract.extractors._image_utils import ensure_rgb_png
 
         buf = io.BytesIO()
@@ -99,7 +97,7 @@ class TestImageUtilsBranches:
         assert media_path in result
 
     def test_batch_convert_handles_generic_exception(self):
-        """batch_convert_vectors_to_png must log and return {} on unexpected error (lines 114-115)."""
+        """batch_convert_vectors_to_png logs and returns {} on unexpected error (lines 114-115)."""
         from multixtract.extractors._image_utils import batch_convert_vectors_to_png
 
         with patch("multixtract.extractors._image_utils.find_libreoffice",
@@ -137,10 +135,9 @@ class TestImageUtilsBranches:
 
     def test_decode_wdp_converts_non_rgb_mode(self):
         """decode_wdp_to_png must convert non-RGB/RGBA images to RGB before saving."""
-        from multixtract.extractors._image_utils import decode_wdp_to_png
-
         import numpy as np
-        from PIL import Image
+
+        from multixtract.extractors._image_utils import decode_wdp_to_png
 
         # Grayscale array → non-RGB mode image
         arr = np.zeros((4, 4), dtype=np.uint8)
@@ -446,7 +443,7 @@ class TestDocxExtractorBranches:
         assert isinstance(prepared, list)
 
     def test_extract_png_with_non_png_header_triggers_ensure_rgb(self, tmp_path):
-        """A .png file with non-PNG bytes triggers ensure_rgb_png; skipped if None (lines 335-339)."""
+        """.png with non-PNG bytes triggers ensure_rgb_png; skipped if None (lines 335-339)."""
         bad_png = b"NOTPNG" + b"\x00" * 60
         doc, prepared = self._run_docx_extract_with_media(
             tmp_path, "word/media/image1.png", bad_png
@@ -456,8 +453,9 @@ class TestDocxExtractorBranches:
 
     def test_extract_tif_extension_normalized_to_tiff(self, tmp_path):
         """Extension .tif must be normalized to 'tiff' in the prepare_image call (line 334)."""
-        from multixtract.extractors.docx import DocxExtractor
         from PIL import Image
+
+        from multixtract.extractors.docx import DocxExtractor
 
         # Make a real TIFF we can open
         buf = io.BytesIO()
@@ -514,9 +512,6 @@ class TestDocxExtractorBranches:
     def test_extract_image_decode_failure_skipped(self, tmp_path):
         """When PIL.Image.open raises, the image is skipped (lines 343-347)."""
         from multixtract.extractors.docx import DocxExtractor
-
-        # A corrupt PNG (valid header, invalid body)
-        corrupt_png = _PNG_BYTES[:8] + b"\x00" * 30
 
         pil_image_mod = MagicMock()
         pil_image_mod.open.side_effect = Exception("cannot decode")
@@ -1295,8 +1290,9 @@ class TestPdfExtractorImageBranches:
 
     def test_extract_image_decode_failure_skipped(self):
         """When Image.open raises during prepare, the image is skipped (lines 316-323)."""
-        from multixtract.extractors.pdf import PdfExtractor
         from PIL import Image as PILImage
+
+        from multixtract.extractors.pdf import PdfExtractor
 
         fitz_mod, fitz_doc, fitz_page, pp_mod, _ = self._base_mocks()
         fitz_page.get_images.return_value = [(13, 0, 0, 0, 0, "", "", "")]

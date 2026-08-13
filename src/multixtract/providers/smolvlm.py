@@ -83,7 +83,10 @@ class SmolVLMVisionModel(VisionModel):
 
         try:
             import torch
-            from transformers import AutoModelForVision2Seq, AutoProcessor  # type: ignore[attr-defined]
+            from transformers import (  # type: ignore[attr-defined]
+                AutoModelForVision2Seq,
+                AutoProcessor,
+            )
         except ImportError as exc:
             raise ImportError(
                 "SmolVLM support requires transformers + torch: "

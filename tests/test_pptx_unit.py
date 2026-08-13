@@ -1,4 +1,3 @@
-import io
 import zipfile
 
 from multixtract.extractors import pptx as pptx_ext

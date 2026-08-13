@@ -1,12 +1,9 @@
-import io
-from pathlib import Path
 
 from multixtract import extract_document
 
 
 def test_docx_extraction_generates_pages(tmp_path):
     from docx import Document
-
     from docx.enum.text import WD_BREAK
     p = tmp_path / "sample.docx"
     doc = Document()
@@ -55,7 +52,11 @@ def test_xlsx_extraction_sheet_cells(tmp_path):
 
     document, images = extract_document(str(p))
     assert "pgs" in document
-    assert any(pg.get("tables") for pg in document["pgs"]) or any(pg.get("txt") for pg in document["pgs"]) or document["pgs"]
+    assert (
+        any(pg.get("tables") for pg in document["pgs"])
+        or any(pg.get("txt") for pg in document["pgs"])
+        or document["pgs"]
+    )
 
 
 def test_pdf_extraction_simple_text(tmp_path):

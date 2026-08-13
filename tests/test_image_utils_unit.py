@@ -5,8 +5,6 @@ from types import SimpleNamespace
 
 from PIL import Image
 
-import pytest
-
 from multixtract.extractors import _image_utils as img_utils
 
 

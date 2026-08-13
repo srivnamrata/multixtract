@@ -480,7 +480,7 @@ def test_pipeline_with_local_disk_store(tmp_path):
 
     store = LocalDiskStore(str(tmp_path))
     pipeline = Pipeline(store=store)
-    result = pipeline.process(str(fixture), skip_if_exists=False)
+    pipeline.process(str(fixture), skip_if_exists=False)
 
     doc_json = tmp_path / "jsons" / "sample.json"
     chunk_json = tmp_path / "chunks" / "sample_chunks.json"

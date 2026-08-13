@@ -2,8 +2,8 @@ from multixtract.chunking import (
     _clean_table_cell,
     _flush_text_elements,
     build_image_content,
-    table_to_markdown,
     estimate_tokens,
+    table_to_markdown,
 )
 
 

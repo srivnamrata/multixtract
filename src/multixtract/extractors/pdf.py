@@ -170,8 +170,8 @@ class PdfExtractor:
         image_filter: Optional[ImageFilterPipeline] = None,
     ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         try:
-            import pymupdf as fitz  # PyMuPDF
             import pdfplumber
+            import pymupdf as fitz  # PyMuPDF
         except ImportError as e:
             raise ImportError(
                 "PDF support requires PyMuPDF + pdfplumber: pip install 'multixtract[pdf]'"

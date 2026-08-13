@@ -2,7 +2,8 @@
 
 Coverage targets (from 84% baseline):
   docx.py       92% -> lines 83-84, 173, 188-189, 201-202, 304-306, 314, 317, 323-324, 338, 363, 372
-  pptx.py       87% -> lines 75, 87-88, 91, 95-96, 104-109, 154-155, 208-209, 214-215, 244, 258-259, 262-263, 270, 300
+  pptx.py       87% -> lines 75, 87-88, 91, 95-96, 104-109, 154-155, 208-209,
+                        214-215, 244, 258-259, 262-263, 270, 300
   pdf.py        94% -> lines 175-176, 286, 301-302, 311, 317, 325-335, 337
   eml.py        66% -> image extraction pipeline (lines 144-182)
   epub.py       68% -> image extraction + PILImage-missing path (lines 111-137, 140-141)
@@ -13,7 +14,6 @@ Coverage targets (from 84% baseline):
 from __future__ import annotations
 
 import io
-import struct
 import sys
 import tempfile
 import textwrap
@@ -91,7 +91,7 @@ class TestDocxBuildPagesLrpbInTable:
         return pages, m2p
 
     def test_table_with_lrpb_finalizes_current_page(self):
-        """A <w:tbl> containing a lastRenderedPageBreak must finalize the current page (line 188)."""
+        """A <w:tbl> with lastRenderedPageBreak must finalize the current page (line 188)."""
         body = ET.fromstring(f"""
             <w:body xmlns:w="{_W_NS}">
                 <w:p><w:r><w:t>Page 1 text</w:t></w:r></w:p>
@@ -194,7 +194,6 @@ class TestDocxExtractZipKeyError:
                    return_value=([{"paragraphs": [], "tables": [], "hyperlinks": []}], {}, {})):
 
             real_zf_cls = zipfile.ZipFile
-            original_namelist_instance = None
 
             def patched_zipfile(path, mode="r"):
                 zf = real_zf_cls(path, mode)
@@ -222,15 +221,12 @@ class TestDocxExtractImagePathBranches:
 
         pil_mod, pil_image_mod, pil_img = _make_pil_mock(size=(200, 200))
 
-        docx_path_holder = {}
-
         def make_docx(tmp_path):
             p = str(tmp_path / "test.docx")
             with zipfile.ZipFile(p, "w") as zf:
                 zf.writestr(media_name, media_bytes)
             return p
 
-        import tempfile, os
         with tempfile.TemporaryDirectory() as td:
             docx_path = make_docx(Path(td))
 
@@ -259,7 +255,8 @@ class TestDocxExtractImagePathBranches:
             }), \
                  patch("multixtract.extractors.docx._build_doc_rels", return_value={}), \
                  patch("multixtract.extractors.docx._build_image_rid_to_media", return_value={}), \
-                 patch("multixtract.extractors.docx.batch_convert_vectors_to_png", return_value={}), \
+                 patch("multixtract.extractors.docx.batch_convert_vectors_to_png",
+                       return_value={}), \
                  patch("multixtract.extractors.docx.decode_wdp_to_png", return_value={}), \
                  patch("multixtract.extractors.docx._build_pages_from_body",
                        return_value=pages_patch):
@@ -280,7 +277,6 @@ class TestDocxExtractImagePathBranches:
         media_path = "word/media/chart.emf"
         png_bytes = _PNG_BYTES
 
-        import tempfile
         with tempfile.TemporaryDirectory() as td:
             docx_path = str(Path(td) / "test.docx")
             with zipfile.ZipFile(docx_path, "w") as zf:
@@ -315,7 +311,7 @@ class TestDocxExtractImagePathBranches:
                 assert call_args[1]["ext"] == "png"
 
     def test_prepare_image_returning_dict_appended(self):
-        """When prepare_image returns a non-None dict it is appended to prepared_images (line 363)."""
+        """Non-None prepare_image result is appended to prepared_images (line 363)."""
         doc, prepared, image_filter = self._run("word/media/img.png", _PNG_BYTES)
         assert image_filter.prepare_image.call_count >= 1
         assert len(prepared) >= 1
@@ -330,7 +326,6 @@ class TestDocxExtractImagePathBranches:
         PILImage.new("RGB", (100, 100)).save(buf, format="JPEG")
         jpeg_bytes = buf.getvalue()
 
-        import tempfile
         with tempfile.TemporaryDirectory() as td:
             docx_path = str(Path(td) / "test.docx")
             with zipfile.ZipFile(docx_path, "w") as zf:
@@ -351,10 +346,12 @@ class TestDocxExtractImagePathBranches:
             with patch.dict(sys.modules, {"docx": mock_docx_mod}), \
                  patch("multixtract.extractors.docx._build_doc_rels", return_value={}), \
                  patch("multixtract.extractors.docx._build_image_rid_to_media", return_value={}), \
-                 patch("multixtract.extractors.docx.batch_convert_vectors_to_png", return_value={}), \
+                 patch("multixtract.extractors.docx.batch_convert_vectors_to_png",
+                       return_value={}), \
                  patch("multixtract.extractors.docx.decode_wdp_to_png", return_value={}), \
                  patch("multixtract.extractors.docx._build_pages_from_body",
-                       return_value=([{"paragraphs": [], "tables": [], "hyperlinks": []}], {}, {})):
+                       return_value=([{"paragraphs": [], "tables": [], "hyperlinks": []}],
+                                     {}, {})):
                 DocxExtractor().extract(docx_path, image_filter=image_filter)
 
             if image_filter.prepare_image.call_count > 0:
@@ -491,7 +488,7 @@ class TestPptxSlideContent:
         assert tables == []
 
     def test_smartart_shape_adds_text(self):
-        """A non-picture shape with SmartArt text gets [SmartArt] prefix in output (lines 107-109)."""
+        """Non-picture shape with SmartArt text gets [SmartArt] prefix (lines 107-109)."""
         from multixtract.extractors.pptx import _extract_slide_content
 
         mso = self._mso()
@@ -570,7 +567,7 @@ class TestPptxExtractorRemainingBranches:
                 PptxExtractor().extract("x.pptx")
 
     def test_vector_item_read_key_error_skipped(self):
-        """KeyError reading a vector file in the pre-scan phase is silently skipped (lines 208-209)."""
+        """KeyError reading a vector file in the pre-scan phase is skipped (lines 208-209)."""
         from multixtract.extractors.pptx import PptxExtractor
 
         extra, _, _ = self._base_setup()
@@ -921,6 +918,7 @@ class TestPdfExtractorRemainingBranches:
     def test_prepare_image_returning_dict_appended(self):
         """When prepare_image returns a dict, it's appended to prepared_images (lines 325-335)."""
         from PIL import Image as PILImage
+
         from multixtract.extractors.pdf import PdfExtractor
 
         fitz_mod, fitz_doc, fitz_page = self._base_fitz()
@@ -974,11 +972,11 @@ class TestEmlImageExtraction:
 
     def _make_eml_with_inline_image(self, image_bytes: bytes, mime: str = "image/png",
                                      filename: str = "photo.png") -> bytes:
-        import email.mime.multipart
         import email.mime.image
+        import email.mime.multipart
         import email.mime.text
-        from email.mime.base import MIMEBase
         from email import encoders
+        from email.mime.base import MIMEBase
 
         msg = email.mime.multipart.MIMEMultipart()
         msg["Subject"] = "Test"
@@ -997,6 +995,7 @@ class TestEmlImageExtraction:
     def test_image_extracted_when_filter_provided(self, tmp_path):
         """EmlExtractor extracts image parts and passes them through image_filter."""
         from PIL import Image as PILImage
+
         from multixtract.extractors.eml import EmlExtractor
 
         buf = io.BytesIO()
@@ -1020,6 +1019,7 @@ class TestEmlImageExtraction:
     def test_image_skipped_when_filter_is_none(self, tmp_path):
         """When image_filter is None, image extraction is skipped entirely."""
         from PIL import Image as PILImage
+
         from multixtract.extractors.eml import EmlExtractor
 
         buf = io.BytesIO()
@@ -1034,6 +1034,7 @@ class TestEmlImageExtraction:
     def test_image_mime_no_extension_uses_mime_type(self, tmp_path):
         """When the attachment has no filename, the MIME type is used for extension."""
         from PIL import Image as PILImage
+
         from multixtract.extractors.eml import EmlExtractor
 
         buf = io.BytesIO()
@@ -1041,9 +1042,10 @@ class TestEmlImageExtraction:
         jpeg_bytes = buf.getvalue()
 
         # Make an EML with a JPEG part but no filename
-        import email.mime.multipart, email.mime.text
-        from email.mime.base import MIMEBase
+        import email.mime.multipart
+        import email.mime.text
         from email import encoders
+        from email.mime.base import MIMEBase
         msg = email.mime.multipart.MIMEMultipart()
         msg["Subject"] = "x"
         msg["From"] = "a@b.com"
@@ -1152,8 +1154,8 @@ class TestEpubImageExtraction:
 
     def test_image_filter_called_when_epub_has_images(self):
         """image_filter.prepare_image is called for each valid EPUB image item."""
-        import ebooklib
         from ebooklib import epub as ebooklib_epub
+
         from multixtract.extractors.epub import EpubExtractor
 
         item, _ = self._png_item()
@@ -1167,9 +1169,9 @@ class TestEpubImageExtraction:
         assert image_filter.prepare_image.call_count >= 1
 
     def test_prepare_image_returning_dict_appended(self):
-        """When prepare_image returns a non-None dict it's added to prepared_images (lines 135-137)."""
-        import ebooklib
+        """Non-None prepare_image result is added to prepared_images (lines 135-137)."""
         from ebooklib import epub as ebooklib_epub
+
         from multixtract.extractors.epub import EpubExtractor
 
         item, png_bytes = self._png_item()
@@ -1201,6 +1203,7 @@ class TestEpubImageExtraction:
     def test_corrupt_image_bytes_skipped(self):
         """EPUB image items that PIL cannot decode are silently skipped."""
         from ebooklib import epub as ebooklib_epub
+
         from multixtract.extractors.epub import EpubExtractor
 
         bad_item = MagicMock()
@@ -1217,6 +1220,7 @@ class TestEpubImageExtraction:
     def test_image_item_with_non_image_ext_skipped(self):
         """EPUB items whose extension is not in _IMAGE_EXTS are skipped (line 115-116)."""
         from ebooklib import epub as ebooklib_epub
+
         from multixtract.extractors.epub import EpubExtractor
 
         non_img = MagicMock()
@@ -1233,6 +1237,7 @@ class TestEpubImageExtraction:
     def test_empty_image_content_skipped(self):
         """EPUB image items with no bytes are skipped (lines 117-119)."""
         from ebooklib import epub as ebooklib_epub
+
         from multixtract.extractors.epub import EpubExtractor
 
         empty_item = MagicMock()
@@ -1295,6 +1300,7 @@ class TestImageExtractorMultipageTiff:
 
     def test_single_frame_tiff_not_multipage(self, tmp_path):
         from PIL import Image as PILImage
+
         from multixtract.extractors.image import ImageExtractor
 
         buf = io.BytesIO()
@@ -1310,6 +1316,7 @@ class TestImageExtractorMultipageTiff:
     def test_multipage_tiff_frame_failure_skipped(self, tmp_path):
         """A frame that fails to seek/decode is skipped (lines 138-142)."""
         from PIL import Image as PILImage
+
         from multixtract.extractors.image import ImageExtractor
 
         buf = io.BytesIO()
@@ -1392,7 +1399,7 @@ class TestLegacyBranches:
                 convert_with_libreoffice("/src/doc.doc", ".docx", "/tmp/out")
 
     def test_convert_with_libreoffice_raises_on_nonzero_exit(self, tmp_path):
-        """convert_with_libreoffice raises RuntimeError when LibreOffice exits non-zero (line 62)."""
+        """convert_with_libreoffice raises RuntimeError on non-zero exit (line 62)."""
         from multixtract.extractors.legacy import convert_with_libreoffice
 
         mock_proc = MagicMock()
@@ -1444,6 +1451,7 @@ class TestFiltersBranches:
     def test_is_reference_logo_out_of_aspect_ratio(self, tmp_path):
         """_is_reference_logo returns (False, '') for images with out-of-range aspect (line 81)."""
         from PIL import Image as PILImage
+
         from multixtract.filters import ImageFilterPipeline
 
         logo = PILImage.new("RGB", (100, 100), color=(255, 0, 0))

@@ -7,7 +7,6 @@ def test_docx_extractor_integration_with_table_image_and_pagebreak(tmp_path):
 
     # Create an image with variation so it passes the solid-color filter
     img_path = tmp_path / "img.png"
-    import random
     img = Image.new("RGB", (300, 300), color=(255, 0, 0))
     pixels = img.load()
     for x in range(0, 300, 10):
@@ -30,7 +29,6 @@ def test_docx_extractor_integration_with_table_image_and_pagebreak(tmp_path):
     doc.save(str(doc_path))
 
     from multixtract.extractors.docx import DocxExtractor
-
     from multixtract.filters import ImageFilterPipeline
 
     extractor = DocxExtractor()
