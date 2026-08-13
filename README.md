@@ -17,24 +17,32 @@ The core is tiny (just `Pillow` + `ImageHash`). Every **format parser** and ever
 pip install multixtract                 # core only — framework + image filters
 ```
 
-### Format extractors
+### Supported file types
 
-Install the formats you need (each lazy-loads its parser; calling an extractor without its extra raises a clear `pip install` hint):
-
-| Extra | Formats | Pulls in |
+| Extra | Extensions | Notes |
 |---|---|---|
-| `[pdf]` | `.pdf` | PyMuPDF, pdfplumber |
-| `[docx]` | `.docx` (+ legacy `.doc`\*) | python-docx |
-| `[pptx]` | `.pptx` (+ legacy `.ppt`\*) | python-pptx |
-| `[xlsx]` | `.xlsx`, `.xlsm`, `.csv` | openpyxl |
-| `[imaging]` | decode `.wdp` / JPEG-XR images embedded in pptx/xlsx | imagecodecs |
+| *(core — no extra needed)* | `.txt`, `.log`, `.conf`, `.ini` | Plain text |
+| *(core — no extra needed)* | `.md` | Markdown, split on H1 headings |
+| *(core — no extra needed)* | `.eml` | Email (RFC 2822), inline images extracted |
+| *(core — no extra needed)* | `.png`, `.jpg`, `.jpeg`, `.tiff`, `.tif`, `.webp`, `.bmp` | Images — multi-frame TIFF supported |
+| `[pdf]` | `.pdf` | Requires PyMuPDF + pdfplumber |
+| `[docx]` | `.docx` | Requires python-docx |
+| `[pptx]` | `.pptx` | Requires python-pptx |
+| `[xlsx]` | `.xlsx`, `.xlsm`, `.csv` | Requires openpyxl |
+| `[html]` | `.html`, `.htm` | Requires beautifulsoup4 |
+| `[rtf]` | `.rtf` | Requires striprtf |
+| `[epub]` | `.epub` | Requires ebooklib + beautifulsoup4 |
+| `[imaging]` | `.wdp` (JPEG-XR) embedded in PPTX/XLSX | Requires imagecodecs |
+| *(via LibreOffice\*)* | `.doc`, `.ppt`, `.odt`, `.odp`, `.ods`, `.xls` | Legacy formats converted before extraction |
 
 ```bash
-pip install "multixtract[pdf]"                 # just PDFs
-pip install "multixtract[pdf,docx,pptx,xlsx]"  # all document formats
+pip install "multixtract[pdf]"                          # just PDFs
+pip install "multixtract[pdf,docx,pptx,xlsx]"           # office documents
+pip install "multixtract[pdf,docx,pptx,xlsx,epub,html,rtf]"  # all text formats
+pip install "multixtract[all]"                          # everything
 ```
 
-\* Legacy `.doc` / `.ppt` are converted via a system **LibreOffice** install (headless) then parsed natively (`.doc`→docx, `.ppt`→pptx). EMF/WMF/SVG vector images also require LibreOffice.
+\* Legacy `.doc`/`.ppt` and OpenDocument formats (`.odt`/`.odp`/`.ods`/`.xls`) require a system **LibreOffice** install (`soffice` on PATH). EMF/WMF/SVG vector images embedded in PPTX/XLSX also require LibreOffice.
 
 ### Providers
 
@@ -258,9 +266,16 @@ Write your own by implementing the same methods (e.g. a local vision model, a se
 ## Development
 
 ```bash
-pip install -e ".[dev,pdf,docx,pptx,xlsx]"
+pip install -e ".[dev,pdf,docx,pptx,xlsx,epub,html,rtf]"
 pytest
 ruff check src tests
+mypy src/multixtract --ignore-missing-imports --no-error-summary
+```
+
+Run the benchmark suite (no GPU required):
+
+```bash
+python benchmarks/run_benchmarks.py
 ```
 
 ## Troubleshooting
@@ -292,6 +307,17 @@ VRAM in BF16; use `load_in_4bit=True` for smaller cards.
 pip install "multixtract[qwen2vl]" --extra-index-url https://download.pytorch.org/whl/cu121
 ```
 Replace `cu121` with your CUDA version (`cu118`, `cu124`, etc.).
+
+**Azure `DefaultAzureCredential` fails locally**
+`DefaultAzureCredential` tries several auth paths in order. For local dev the
+easiest is `az login` (Azure CLI). For managed identity in production, ensure
+the compute resource has an assigned identity and the necessary role on the
+target resource.
+
+**PyMuPDF / pdfplumber version conflicts**
+If you see an `ImportError` or deprecation warning related to `fitz` or `pymupdf`,
+ensure `PyMuPDF>=1.23` is installed. `pdfplumber` and `PyMuPDF` can coexist;
+both are required for the `[pdf]` extra.
 
 ## Compatibility
 
@@ -328,18 +354,6 @@ Replace `[qwen2vl]` with `[llama]` or `[smolvlm]` as needed.
 | 3.12 | ✓ | ✓ | ✓ |
 
 Core extraction (no ML extras) is tested on all three platforms in CI. Local vision model extras are developed and tested on Linux with NVIDIA GPUs.
-
-**Azure `DefaultAzureCredential` fails locally**
-`DefaultAzureCredential` tries several auth paths in order. For local dev the
-easiest is `az login` (Azure CLI). For managed identity in production, ensure
-the compute resource has an assigned identity and the necessary role on the
-target resource.
-
-
-**PyMuPDF / pdfplumber version conflicts**
-If you see `ImportError` from `fitz`, ensure `PyMuPDF>=1.23` is installed.
-`pdfplumber` and `PyMuPDF` can coexist; both are required for the `[pdf]` extra.
-
 
 ## License
 
