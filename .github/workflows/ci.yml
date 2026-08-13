@@ -24,14 +24,15 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: "pip"
 
-      # PRs: core + dev only (fast).  Pushes to main: add format extras.
+      # PRs: core + dev only (fast feedback, no heavy format extras).
+      # Pushes to main: full format extras so coverage includes epub/html/rtf.
       - name: Install dependencies (PR — core + dev)
         if: github.event_name == 'pull_request'
         run: pip install -e ".[dev]" pytest-cov
 
-      - name: Install dependencies (main — core + dev + format extras)
+      - name: Install dependencies (main — core + dev + all format extras)
         if: github.event_name != 'pull_request'
-        run: pip install -e ".[dev,pdf,docx,pptx,xlsx]" pytest-cov
+        run: pip install -e ".[dev,pdf,docx,pptx,xlsx,epub,html,rtf]" pytest-cov
 
       - name: Lint
         run: ruff check src tests
@@ -47,7 +48,14 @@ jobs:
           python -c "import examples.usage_example; print('usage_example: import-safe')"
           python -c "import examples.quickstart;   print('quickstart:    import-safe')"
 
-      - name: Test with coverage
+      # PRs: run tests without a coverage floor (extras not installed → low coverage).
+      # Main: enforce 90% with all format extras installed.
+      - name: Test with coverage (PR — no floor)
+        if: github.event_name == 'pull_request'
+        run: pytest --cov=multixtract --cov-report=term-missing
+
+      - name: Test with coverage (main — enforce 90%)
+        if: github.event_name != 'pull_request'
         run: pytest --cov=multixtract --cov-report=term-missing --cov-fail-under=90
 
       - name: Upload coverage to Codecov
