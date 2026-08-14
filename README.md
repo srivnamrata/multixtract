@@ -29,44 +29,13 @@ The core is tiny (just `Pillow` + `ImageHash`). Every format parser and every cl
 
 ---
 
-## Contents
-
-- [Ideal Use Cases](#ideal-use-cases)
-- [Why Multixtract?](#why-multixtract)
-- [Quick Example](#quick-example)
-- [Install](#install)
-- [Recipes](#recipes--use-only-the-parts-you-need)
-- [Local Vision Models](#local-vision-models--offline-no-api-key)
-- [Architecture](#architecture)
-- [Works with LangChain, LlamaIndex, and Haystack](#works-with-langchain-llamaindex-and-haystack)
-- [Benchmarks](#benchmarks)
-- [Features](#features)
-- [Development](#development)
-- [Troubleshooting](#troubleshooting)
-- [Compatibility](#compatibility)
-- [Projects Using Multixtract](#projects-using-multixtract)
-
----
-
-## Ideal Use Cases
-
-| Domain | What multixtract gives you |
-|---|---|
-| **RAG pipelines** | Chunked, embedded documents ready for vector search |
-| **Enterprise search** | Unified extraction across mixed document formats |
-| **Contract analysis** | Text + tables + page numbers, preserved structure |
-| **Financial reports** | Tables extracted as Markdown, charts described via vision |
-| **Scientific papers** | PDF text + figure captions via OCR/vision |
-| **Knowledge management** | Bulk ingestion into Azure Blob, S3, or local disk |
-| **OCR workflows** | Offline extraction — no cloud required |
-
----
-
 ## Why Multixtract?
 
 Most libraries optimise for one part of the workflow — parse documents, run OCR, generate embeddings, or store vectors. You end up stitching together five packages with incompatible interfaces and rebuilding the same pipeline on every project.
 
 multixtract connects all of them without locking you into a provider. Swap OpenAI for Azure or a local model, swap Azure Blob for S3, add a new file format — none of it touches the rest of the pipeline.
+
+> **What multixtract is not:** It is not a vector database, retrieval framework, or chat system. It focuses on document ingestion and preparation — getting clean, structured, chunked content into whatever AI system you're building.
 
 | Feature | **multixtract** | Unstructured | Docling |
 |---|---|---|---|
@@ -85,7 +54,11 @@ multixtract connects all of them without locking you into a provider. Swap OpenA
 
 ---
 
-## Quick Example
+## Quick Start
+
+```bash
+pip install "multixtract[pdf,docx,pptx,xlsx]"
+```
 
 One call. Any document. Done.
 
@@ -95,34 +68,29 @@ from multixtract import Pipeline
 Pipeline().process("report.pdf")   # extract → filter → chunk — no API key needed
 ```
 
-Add vision and embeddings when you're ready:
-
-```python
-from multixtract import Pipeline
-from multixtract.providers import OpenAIVisionModel, OpenAIEmbedder
-from multixtract.providers.storage import LocalDiskStore
-
-Pipeline(
-    vision=OpenAIVisionModel(api_key="sk-...", model="gpt-4o"),
-    embedder=OpenAIEmbedder(api_key="sk-...", dim=1024),
-    store=LocalDiskStore("./output"),
-).process("report.pdf")   # → text + table + image chunks, embedded, saved
-```
-
-Or stay close to the data and call each step yourself:
+Or stay close to the data:
 
 ```python
 from multixtract import extract_document, chunk_document
 
 document, images = extract_document("report.pdf")
 chunks = chunk_document(document, base_name="report")
-# 12 pages  |  47 chunks  |  8 images — no API key needed
 ```
 
-### What the document looks like
+**Supported formats:** PDF · DOCX · PPTX · XLSX · CSV · EPUB · HTML · RTF · Email · Images · Plain text · Markdown — and legacy `.doc` / `.ppt` via LibreOffice.
+
+**Vision providers:** OpenAI · Azure OpenAI · Qwen2.5-VL · Llama 3.2 Vision · SmolVLM (CPU) · bring your own.
+
+→ [Full installation guide](https://srivnamrata.github.io/multixtract/usage/#install) · [Recipes](docs/recipes/) · [Provider setup](docs/providers/)
+
+---
+
+## Document Schema
+
+Every call to `extract_document` returns the same structure regardless of input format:
 
 ```
-PDF / DOCX / PPTX
+PDF / DOCX / PPTX / XLSX / …
         │
         ▼
 {
@@ -147,207 +115,7 @@ PDF / DOCX / PPTX
 }
 ```
 
-### What each chunk looks like
-
-```python
-# Text chunk
-{
-    "chunk_id":   "report-p1-c0",
-    "chunk_type": "text",
-    "pg_num":     1,
-    "content":    "The quarterly results show a 12% increase in revenue...",
-    "token_cnt":  312,
-    "embedding":  [0.021, -0.003, 0.117, ...]   # None if no embedder configured
-}
-
-# Table chunk (serialized to Markdown)
-{
-    "chunk_id":   "report-p1-t0",
-    "chunk_type": "table",
-    "pg_num":     1,
-    "content":    "| Region | Q1   | Q2   |\n|--------|------|------|\n| North  | 1.2M | 1.4M |",
-    "token_cnt":  48,
-    "embedding":  [0.003, 0.091, -0.044, ...]
-}
-
-# Image chunk (after vision model)
-{
-    "chunk_id":   "report-p2-img0",
-    "chunk_type": "image",
-    "pg_num":     2,
-    "content":    "Bar chart showing Q1–Q4 revenue by region. North leads at 1.4M in Q2.",
-    "caption":    "Figure 1: Regional revenue by quarter",
-    "ocr_text":   "Q1  Q2  Q3  Q4  North  South  East  West",
-    "token_cnt":  61,
-    "embedding":  [-0.012, 0.054, ...]
-}
-```
-
----
-
-## Install
-
-```bash
-pip install multixtract                 # core only — framework + image filters
-```
-
-### Supported file types
-
-| Extra | Extensions | Notes |
-|---|---|---|
-| *(core)* | `.txt`, `.log`, `.md`, `.eml`, `.png`, `.jpg`, `.tiff`, `.webp`, `.bmp` | Text, Markdown, email, images |
-| `[pdf]` | `.pdf` | Requires PyMuPDF + pdfplumber |
-| `[docx]` | `.docx` | Requires python-docx |
-| `[pptx]` | `.pptx` | Requires python-pptx |
-| `[xlsx]` | `.xlsx`, `.xlsm`, `.csv` | Requires openpyxl |
-| `[html]` | `.html`, `.htm` | Requires beautifulsoup4 |
-| `[rtf]` | `.rtf` | Requires striprtf |
-| `[epub]` | `.epub` | Requires ebooklib + beautifulsoup4 |
-| `[imaging]` | `.wdp` (JPEG-XR) in PPTX/XLSX | Requires imagecodecs |
-| *(via LibreOffice\*)* | `.doc`, `.ppt`, `.odt`, `.odp`, `.ods`, `.xls` | Legacy formats |
-
-```bash
-pip install "multixtract[pdf,docx,pptx,xlsx]"                       # office documents
-pip install "multixtract[pdf,docx,pptx,xlsx,epub,html,rtf]"         # all text formats
-pip install "multixtract[all]"                                       # everything
-```
-
-\* Legacy `.doc`/`.ppt` and OpenDocument formats require a system **LibreOffice** install (`soffice` on PATH).
-
-### Vision & embedding providers
-
-| Extra | Adds |
-|---|---|
-| `[openai]` | OpenAI vision & embeddings |
-| `[azure]` | Azure OpenAI + Azure Blob Storage |
-| `[qwen2vl]` | Qwen2.5-VL local vision (GPU) |
-| `[smolvlm]` | SmolVLM 2.2B local vision (CPU-friendly) |
-| `[llama]` | Llama 3.2 Vision local vision (GPU) |
-
-```bash
-pip install "multixtract[openai]"     # + OpenAI vision & embeddings
-pip install "multixtract[azure]"      # + Azure OpenAI & Azure Blob Storage
-pip install "multixtract[all]"        # everything
-```
-
----
-
-## Recipes — use only the parts you need
-
-Extraction, vision, chunking, and embedding are fully **decoupled**. Call only the steps you want.
-
-### Full pipeline (OpenAI)
-
-```python
-from multixtract import Pipeline
-from multixtract.providers import OpenAIVisionModel, OpenAIEmbedder
-from multixtract.providers.storage import LocalDiskStore
-
-Pipeline(
-    vision=OpenAIVisionModel(api_key="sk-...", model="gpt-4o"),
-    embedder=OpenAIEmbedder(api_key="sk-...", model="text-embedding-3-large", dim=1024),
-    store=LocalDiskStore("./output_folder"),
-).process("report.pdf")   # also .docx / .pptx / .xlsx / .csv
-```
-
-### Full pipeline (Azure OpenAI + Azure Blob)
-
-```python
-from multixtract import Pipeline
-from multixtract.providers import AzureOpenAIVisionModel, AzureOpenAIEmbedder, AzureBlobStore
-
-Pipeline(
-    vision=AzureOpenAIVisionModel(
-        endpoint="https://<resource>.openai.azure.com",
-        api_key=AZURE_OPENAI_KEY,
-        deployment="gpt-4o",
-    ),
-    embedder=AzureOpenAIEmbedder(
-        endpoint="https://<resource>.openai.azure.com",
-        api_key=AZURE_OPENAI_KEY,
-        deployment="text-embedding-3-large",
-        dim=1024,
-    ),
-    store=AzureBlobStore(container="my-container", account_url="https://<account>.blob.core.windows.net"),
-).process("report.pdf")
-```
-
-### Extract only — no chunking, no embedding
-
-```python
-from multixtract import extract_document
-
-document, images = extract_document("report.pdf")
-
-for page in document["pgs"]:
-    print(page["txt"])
-    for table in page["tables"]:
-        print(table)
-```
-
-### Extract + chunk, skip embedding
-
-```python
-from multixtract import extract_document, chunk_document
-
-document, _ = extract_document("report.pdf")
-chunks = chunk_document(document, base_name="report")  # embedding=None on each chunk
-```
-
-### Bring your own OCR — fully offline
-
-```python
-import io, pytesseract
-from PIL import Image
-from multixtract import extract_document
-from multixtract.interfaces import VisionResult
-
-class TesseractVisionModel:
-    def analyze(self, image_bytes, ext="png", width=0, height=0) -> VisionResult:
-        try:
-            text = pytesseract.image_to_string(Image.open(io.BytesIO(image_bytes)))
-        except Exception:
-            return VisionResult()
-        return VisionResult(ocr_text=text.strip())
-
-document, images = extract_document("scanned.pdf")
-vision = TesseractVisionModel()
-for img in images:
-    print(vision.analyze(img["image_bytes"], img["ext"]).ocr_text)
-```
-
-Any object with an `analyze()` method works — no subclassing, no cloud SDK. Drop it into `Pipeline(vision=TesseractVisionModel(), ...)` for offline end-to-end extraction.
-
----
-
-## Local Vision Models — offline, no API key
-
-All three return the same `VisionResult` and are drop-in replacements for the cloud providers.
-
-| Model | Extra | VRAM | Best for |
-|---|---|---|---|
-| **Qwen2.5-VL** *(recommended)* | `[qwen2vl]` | 16–24 GB GPU | Highest accuracy — leads DocVQA / ChartQA / TextVQA |
-| **SmolVLM 2.2B** | `[smolvlm]` | None — CPU | No GPU available; fast enough for batch jobs |
-| **Llama 3.2 Vision** | `[llama]` | 16+ GB GPU | Meta / Llama ecosystem; 11B or 90B |
-
-```python
-from multixtract.providers import Qwen2VLVisionModel, SmolVLMVisionModel, Llama32VisionModel
-
-vision = Qwen2VLVisionModel()                                     # 7B GPU, best accuracy
-vision = Qwen2VLVisionModel("Qwen/Qwen2.5-VL-3B-Instruct")       # 3B for less VRAM
-vision = Qwen2VLVisionModel(load_in_4bit=True)                    # 4-bit, needs bitsandbytes
-
-vision = SmolVLMVisionModel()                                     # CPU-friendly, 2.2B
-vision = SmolVLMVisionModel("HuggingFaceTB/SmolVLM-500M-Instruct")  # 500M for extreme constraints
-
-vision = Llama32VisionModel()                                     # 11B GPU
-vision = Llama32VisionModel(load_in_4bit=True)
-
-# All are drop-in replacements — same interface, same pipeline:
-Pipeline(vision=vision, embedder=my_embedder, store=my_store).process("report.pdf")
-```
-
-See [docs: compatibility](https://srivnamrata.github.io/multixtract/usage/#compatibility) for tested `torch` / CUDA combinations and GPU wheel selection.
+→ [Full data model and chunk schema](docs/data-model.md)
 
 ---
 
@@ -413,56 +181,39 @@ Add a new format with `register_extractor`. Plug in S3, GCS, or any backend by i
 
 ---
 
-## Works with LangChain, LlamaIndex, and Haystack
+## Integrations
 
 Multixtract is an **extraction and chunking layer**, not a RAG framework. It fits underneath the tools you already use:
 
 ```python
-# Feed multixtract chunks into LangChain
 from multixtract import extract_document, chunk_document
 from langchain.schema import Document as LCDocument
 
 document, _ = extract_document("report.pdf")
 chunks = chunk_document(document, base_name="report")
 
+# LangChain
 lc_docs = [LCDocument(page_content=c["content"], metadata={"pg": c["pg_num"]}) for c in chunks]
-# → pass lc_docs to any LangChain vector store
-```
 
-```python
-# Or feed into LlamaIndex
+# LlamaIndex
 from llama_index.core import Document as LIDocument
-
 li_docs = [LIDocument(text=c["content"], metadata={"chunk_id": c["chunk_id"]}) for c in chunks]
-# → pass li_docs to VectorStoreIndex.from_documents(li_docs)
 ```
 
-The same pattern works with **Haystack**, **Semantic Kernel**, or any framework that accepts a list of text + metadata. multixtract handles the hard part — parsing the file, filtering noise images, and OCR — so your RAG framework can focus on retrieval.
+Works the same way with **Haystack**, **Semantic Kernel**, **Chroma**, **pgvector**, or any system that accepts text + metadata.
 
----
+### Example projects
 
-## Benchmarks
-
-Run the benchmark suite yourself (no GPU, no API key needed):
-
-```bash
-python benchmarks/run_benchmarks.py
-```
-
-Results on a **GitHub Actions 4-core runner** using representative fixture files:
-
-| Operation | Result |
+| Integration | What it shows |
 |---|---|
-| Extract PDF | < 10 s |
-| Extract DOCX | < 5 s |
-| Extract PPTX | < 5 s |
-| Extract XLSX | < 5 s |
-| Extract EPUB | < 5 s |
-| Extract + chunk PDF | < 15 s |
+| [LangChain + Chroma](examples/langchain_chroma/) | Ingest → Chroma vector store → RetrievalQA |
+| [Azure AI Search](examples/azure_ai_search/) | Ingest → hybrid keyword + vector search → GPT-4o answer |
+| [LlamaIndex](examples/llamaindex/) | Ingest → LlamaIndex VectorStoreIndex → query engine |
+| [pgvector](examples/pgvector/) | Ingest → PostgreSQL + pgvector → cosine similarity search |
+| [Semantic Kernel](examples/semantic_kernel/) | Ingest → SK memory store → prompt function RAG |
+| [Offline OCR](examples/offline_ocr/) | Tesseract OCR on images — no API key, no cloud, no GPU |
 
-These are enforced CI ceilings — the suite exits non-zero if any ceiling is breached on every commit. Real-world times on typical office documents are well within these bounds.
-
-For throughput at scale, `vision_workers` parallelises vision API calls and `Pipeline` batches embeddings automatically. Actual measured numbers on production-sized documents (50-page PDFs, 100-slide decks) coming in a future release — PRs with benchmark results welcome.
+Each example is a self-contained `ingest.py` with a `--query` flag so you can extract, store, and query in one command.
 
 ---
 
@@ -475,11 +226,54 @@ For throughput at scale, `vision_workers` parallelises vision API calls and `Pip
 * Tables serialized to **Markdown**; images embedded once and reused
 * **Parallel** vision calls (`vision_workers`), **batched** embeddings
 * Resume support — skip documents already in the store (`skip_if_exists`)
+* Document-level metadata on every chunk: `doc_id`, `file_path`, `file_name`, `file_type`, `total_pgs`, `last_updated`
 * Fully typed — `py.typed` marker, compatible with mypy and pyright
 
 ---
 
-## Development
+## Roadmap
+
+- [x] PDF / DOCX / PPTX / XLSX extraction
+- [x] EPUB / HTML / RTF / email extraction
+- [x] Azure OpenAI vision + embeddings integration
+- [x] Local vision models (Qwen2.5-VL, Llama 3.2, SmolVLM)
+- [x] Azure Blob Storage backend
+- [x] Sliding-window chunking with sentence-boundary awareness
+- [x] Smart image filtering (dimension, solid-color, logo dedup)
+- [x] Document-level metadata on every chunk (`file_path`, `doc_id`, `last_updated`, …)
+- [ ] Figure-caption association (link extracted images to their nearest caption)
+- [ ] S3 storage backend (built-in, no BYO required)
+- [ ] Table-of-contents aware chunking (respect heading hierarchy)
+- [ ] multisense — companion RAG pipeline library built on multixtract
+
+PRs and feature requests welcome via [GitHub Issues](https://github.com/srivnamrata/multixtract/issues).
+
+---
+
+## Performance
+
+Extracts a 50-page PDF in **~4 s** and a 100-slide PPTX in **~0.14 s** on a standard developer machine (no GPU, no API key). Chunking adds negligible overhead.
+
+→ [Full benchmark results and methodology](docs/performance.md)
+
+---
+
+## Documentation
+
+| | |
+|---|---|
+| [Installation](https://srivnamrata.github.io/multixtract/usage/#install) | Extras, formats, providers |
+| [Recipes](docs/recipes/) | OpenAI · Azure · extract-only · chunk-only · offline OCR |
+| [Providers](docs/providers/) | OpenAI · Azure · Qwen · SmolVLM · Llama |
+| [Data model](docs/data-model.md) | Document schema · chunk schema · metadata fields |
+| [Performance](docs/performance.md) | Benchmark results and methodology |
+| [Compatibility](docs/compatibility.md) | Python · OS · torch / CUDA combinations |
+| [Troubleshooting](docs/troubleshooting.md) | LibreOffice · CUDA · Azure auth · common errors |
+| [API Reference](https://srivnamrata.github.io/multixtract/api/) | Full public API |
+
+---
+
+## Contributing
 
 ```bash
 pip install -e ".[dev,pdf,docx,pptx,xlsx,epub,html,rtf]"
@@ -489,46 +283,7 @@ mypy src/multixtract --ignore-missing-imports --no-error-summary
 python benchmarks/run_benchmarks.py
 ```
 
----
-
-## Troubleshooting
-
-**LibreOffice not found / vector images skipped**
-Install LibreOffice system-wide (`apt install libreoffice` / `brew install libreoffice` / [libreoffice.org](https://www.libreoffice.org/download/download/)) and ensure `soffice` is on `PATH`. Without it, EMF/WMF/SVG images and legacy `.doc`/`.ppt` files are silently skipped.
-
-**`transformers` / `torch` import errors or CUDA failures**
-Confirm your environment with:
-```python
-import torch; print(torch.cuda.is_available(), torch.version.cuda)
-```
-If CUDA is unavailable, SmolVLM (`[smolvlm]`) runs on CPU. Qwen2.5-VL and Llama 3.2 Vision require ≥16 GB VRAM; use `load_in_4bit=True` for smaller cards. See [docs: compatibility](https://srivnamrata.github.io/multixtract/usage/#compatibility) for tested torch/CUDA combinations.
-
-**`pip install multixtract[qwen2vl]` takes a long time**
-`torch` is ~2 GB. Pull a GPU-specific wheel:
-```bash
-pip install "multixtract[qwen2vl]" --extra-index-url https://download.pytorch.org/whl/cu121
-```
-
-**Azure `DefaultAzureCredential` fails locally**
-Run `az login` for local dev. In production, assign a managed identity to the compute resource.
-
-**PyMuPDF / pdfplumber version conflicts**
-Ensure `PyMuPDF>=1.23`. Both packages are required for `[pdf]` and can coexist.
-
----
-
-## Compatibility
-
-| Python | Ubuntu | macOS | Windows |
-|--------|--------|-------|---------|
-| 3.9 | ✓ | ✓ | ✓ |
-| 3.10 | ✓ | ✓ | ✓ |
-| 3.11 | ✓ | ✓ | ✓ |
-| 3.12 | ✓ | ✓ | ✓ |
-
-Core extraction (no ML extras) is tested on all three platforms in CI. Local vision model extras are tested on Linux with NVIDIA GPUs.
-
-For detailed `torch` / `transformers` / CUDA version matrices and GPU wheel selection, see [docs: compatibility](https://srivnamrata.github.io/multixtract/usage/#compatibility).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. Bug reports and PRs are welcome.
 
 ---
 

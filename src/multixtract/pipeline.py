@@ -98,6 +98,19 @@ class Pipeline:
         # Assemble image metadata onto pages + a flat image index
         image_index = self._assemble_images(document, prepared, vision_by_id, image_embeds)
 
+        # Stamp document-level provenance into metadata so the doc JSON is
+        # self-contained even when the caller never looks at the chunks.
+        _file_type    = os.path.splitext(doc_path)[1].lstrip(".").lower()
+        _file_name    = os.path.basename(doc_path)
+        _last_updated = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        document.setdefault("metadata", {}).update({
+            "doc_id":       base_name,
+            "file_name":    _file_name,
+            "file_path":    doc_path,
+            "file_type":    _file_type,
+            "last_updated": _last_updated,
+        })
+
         # Phase 3 — chunk + embed chunks (wired to config)
         chunks = chunk_document(
             document,
@@ -105,19 +118,13 @@ class Pipeline:
             image_embeddings=image_embeds,
             target_tokens=config.chunk_target_tokens,
             overlap_tokens=config.chunk_overlap_tokens,
+            doc_id=base_name,
+            file_name=_file_name,
+            file_path=doc_path,
+            file_type=_file_type,
+            last_updated=_last_updated,
         )
         self._embed_chunks(chunks)
-
-        stamp = {
-            "doc_id":     base_name,
-            "file_name":  os.path.basename(doc_path),
-            "file_path":  doc_path,
-            "file_type":  os.path.splitext(doc_path)[1].lstrip(".").lower(),
-            "total_pgs":  len(document.get("pgs", [])),
-            "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        }
-        for chunk in chunks:
-            chunk.update(stamp)
 
         result = ExtractionResult(
             base_name=base_name,
@@ -194,6 +201,7 @@ class Pipeline:
                 "width": img["width"],
                 "height": img["height"],
                 "format": img["ext"],
+                "size_bytes": img.get("size_bytes"),
                 "embedding": image_embeds.get(img["image_id"]),
             })
         return image_index

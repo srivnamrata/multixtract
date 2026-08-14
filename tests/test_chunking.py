@@ -48,7 +48,7 @@ def test_build_image_content_combines_fields():
 
 def test_chunk_document_types_and_ids():
     document = {
-        "metadata": {},
+        "metadata": {"format": "pdf", "page_count": 1},
         "pgs": [
             {
                 "pg_num": 1,
@@ -59,14 +59,38 @@ def test_chunk_document_types_and_ids():
             }
         ],
     }
-    chunks = chunk_document(document, base_name="doc", image_embeddings={"page_1_img_0": [0.1, 0.2]})  # noqa: E501
+    chunks = chunk_document(
+        document,
+        base_name="doc",
+        image_embeddings={"page_1_img_0": [0.1, 0.2]},
+        file_path="/data/doc.pdf",
+        file_name="doc.pdf",
+        doc_id="doc-001",
+        last_updated="2026-01-01T00:00:00Z",
+    )
     types = {c["chunk_type"] for c in chunks}
     assert {"text", "table", "image"} <= types
+
     # Deterministic ids.
     assert any(c["chunk_id"] == "doc__p1_e0_tbl" for c in chunks)
+
     # Image embedding reused.
     img_chunk = next(c for c in chunks if c["chunk_type"] == "image")
     assert img_chunk["embedding"] == [0.1, 0.2]
+
+    # Every chunk carries the document-level fields.
+    required = {"doc_id", "file_name", "file_path", "file_type", "total_pgs", "last_updated"}
+    for chunk in chunks:
+        assert required <= chunk.keys(), f"Chunk missing fields: {required - chunk.keys()}"
+        assert chunk["doc_id"] == "doc-001"
+        assert chunk["file_path"] == "/data/doc.pdf"
+        assert chunk["last_updated"] == "2026-01-01T00:00:00Z"
+        assert chunk["total_pgs"] == 1
+
+    # total_txt_chunks_on_pg is present on all text chunks.
+    text_chunks = [c for c in chunks if c["chunk_type"] == "text"]
+    assert all("total_txt_chunks_on_pg" in c for c in text_chunks)
+    assert all(c["total_txt_chunks_on_pg"] == len(text_chunks) for c in text_chunks)
 
 
 def test_split_text_oversized_sentence_emitted_as_own_chunk():

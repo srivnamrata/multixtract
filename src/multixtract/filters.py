@@ -177,5 +177,6 @@ class ImageFilterPipeline:
             "ext": ext,
             "width": width,
             "height": height,
+            "size_bytes": len(image_bytes),
             "img_path": f"pg{page_number}_img{img_idx}.{ext}",
         }

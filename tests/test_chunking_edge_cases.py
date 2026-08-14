@@ -32,7 +32,7 @@ def test_flush_text_elements_filters_tiny_chunks():
     # text buffer with content too small to meet CHUNK_MIN_TOKENS should be filtered
     tiny = ["a b"]  # estimate_tokens -> int(2*1.3) = 2 < CHUNK_MIN_TOKENS (3)
     chunks = _flush_text_elements(tiny, base_name="doc", page_num=1, elem_start=0,
-                                  target_tokens=50, overlap_tokens=10)
+                                  doc_meta={}, target_tokens=50, overlap_tokens=10)
     assert chunks == []
 
 

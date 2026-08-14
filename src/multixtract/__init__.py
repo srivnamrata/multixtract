@@ -5,7 +5,7 @@ core functions (:func:`extract_document`, :func:`chunk_document`), the extractor
 registry, and the provider interfaces. Concrete providers live in
 :mod:`multixtract.providers`; format extractors in :mod:`multixtract.extractors`.
 """
-from .chunking import chunk_document, split_text_into_chunks, table_to_markdown
+from .chunking import chunk_document, safe_index_key, split_text_into_chunks, table_to_markdown
 from .extraction import extract_document
 from .extractors import (
     ExtractorRegistry,
@@ -39,6 +39,7 @@ __all__ = [
     "chunk_document",
     "split_text_into_chunks",
     "table_to_markdown",
+    "safe_index_key",
     "ImageFilterPipeline",
     "DocumentExtractor",
     "ExtractorRegistry",

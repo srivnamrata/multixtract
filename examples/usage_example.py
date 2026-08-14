@@ -34,7 +34,6 @@ from __future__ import annotations
 import os
 import sys
 
-
 # ---------------------------------------------------------------------------
 # 1. Extract only — text, tables, images  (no chunking, no embeddings)
 # ---------------------------------------------------------------------------
@@ -59,11 +58,11 @@ def example_1_extract_only(doc_path: str) -> None:
 # ---------------------------------------------------------------------------
 
 def example_2_extract_and_chunk(doc_path: str) -> None:
-    from multixtract import extract_document, chunk_document
+    from multixtract import chunk_document, extract_document
 
     document, images = extract_document(doc_path)
     chunks = chunk_document(document, base_name=os.path.splitext(os.path.basename(doc_path))[0])
-    print(f"\n=== 2. Extract + chunk ===")
+    print("\n=== 2. Extract + chunk ===")
     print(f"Pages: {len(document['pgs'])}  |  Images: {len(images)}  |  Chunks: {len(chunks)}")
 
 
@@ -73,7 +72,7 @@ def example_2_extract_and_chunk(doc_path: str) -> None:
 
 def example_3_openai_pipeline(doc_path: str) -> None:
     from multixtract import Pipeline
-    from multixtract.providers import OpenAIVisionModel, OpenAIEmbedder
+    from multixtract.providers import OpenAIEmbedder, OpenAIVisionModel
     from multixtract.providers.storage import LocalDiskStore
 
     openai_key = os.environ.get("OPENAI_API_KEY", "")
@@ -88,7 +87,7 @@ def example_3_openai_pipeline(doc_path: str) -> None:
         store=LocalDiskStore("./output"),
     )
     result = pipeline.process(doc_path)
-    print(f"\n=== 3. OpenAI pipeline ===")
+    print("\n=== 3. OpenAI pipeline ===")
     print(result.base_name, len(result.chunks), "chunks", result.filter_stats)
 
 
@@ -103,9 +102,10 @@ def example_4_azure_pipeline(doc_path: str) -> None:
         print("\n=== 4. Azure pipeline: skipped (set AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_KEY) ===")
         return
 
-    from multixtract import Pipeline, PipelineConfig
-    from multixtract.providers import AzureOpenAIVisionModel, AzureOpenAIEmbedder, AzureBlobStore
     from azure.identity import ClientSecretCredential
+
+    from multixtract import Pipeline, PipelineConfig
+    from multixtract.providers import AzureBlobStore, AzureOpenAIEmbedder, AzureOpenAIVisionModel
 
     vision = AzureOpenAIVisionModel(endpoint=endpoint, api_key=api_key, deployment="gpt-4o")
     embedder = AzureOpenAIEmbedder(endpoint=endpoint, api_key=api_key,
@@ -124,7 +124,7 @@ def example_4_azure_pipeline(doc_path: str) -> None:
     pipeline = Pipeline(vision=vision, embedder=embedder, store=store,
                         config=PipelineConfig(vision_workers=6))
     result = pipeline.process(doc_path)
-    print(f"\n=== 4. Azure pipeline ===")
+    print("\n=== 4. Azure pipeline ===")
     print("Stored", result.base_name, "->", len(result.chunks), "chunks")
 
 
@@ -138,7 +138,7 @@ def example_5_inspect_results(doc_path: str) -> None:
 
     result = Pipeline(vision=None, embedder=None,
                       store=LocalDiskStore("./output")).process(doc_path)
-    print(f"\n=== 5. Inspect results ===")
+    print("\n=== 5. Inspect results ===")
     print(result.document["pgs"][0]["txt"][:500])
     for img in result.image_index[:3]:
         print(img["img_id"], "|", img.get("caption", ""))
@@ -178,7 +178,7 @@ def example_6_pipeline_config(doc_path: str) -> None:
 # ---------------------------------------------------------------------------
 
 def example_7_byo_providers(doc_path: str) -> None:
-    print(f"\n=== 7. BYO providers ===")
+    print("\n=== 7. BYO providers ===")
 
     # 7a. BYO VisionModel — no-op echo
     from multixtract.interfaces import VisionModel, VisionResult
@@ -191,8 +191,9 @@ def example_7_byo_providers(doc_path: str) -> None:
 
     # 7b. BYO Embedder — sentence-transformers (offline)
     # pip install sentence-transformers
-    from multixtract.interfaces import Embedder
     from typing import List, Optional
+
+    from multixtract.interfaces import Embedder
 
     class SentenceTransformerEmbedder(Embedder):
         def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
@@ -209,6 +210,7 @@ def example_7_byo_providers(doc_path: str) -> None:
 
     # 7c. BYO BlobStore — AWS S3
     import json
+
     from multixtract.interfaces import BlobStore
 
     class S3BlobStore(BlobStore):
@@ -239,9 +241,10 @@ def example_7_byo_providers(doc_path: str) -> None:
                 return False
 
     # 7d. BYO DocumentExtractor
+    from typing import Any, Dict, Tuple
+
     from multixtract import register_extractor
     from multixtract.interfaces import DocumentExtractor
-    from typing import Any, Dict, Tuple
 
     class MarkdownExtractor(DocumentExtractor):
         extensions = (".md",)
@@ -268,7 +271,7 @@ def example_7_byo_providers(doc_path: str) -> None:
 # ---------------------------------------------------------------------------
 
 def example_8_recipes(doc_path: str) -> None:
-    print(f"\n=== 8. Recipes ===")
+    print("\n=== 8. Recipes ===")
 
     # 8a. Text splitter standalone
     from multixtract import split_text_into_chunks
@@ -280,7 +283,7 @@ def example_8_recipes(doc_path: str) -> None:
         print(f"[{i}] {chunk[:80]}")
 
     # 8b. table_to_markdown standalone
-    from multixtract import table_to_markdown, extract_document
+    from multixtract import extract_document, table_to_markdown
     document, _ = extract_document(doc_path)
     for page in document["pgs"]:
         for table in page["tables"]:
@@ -316,7 +319,7 @@ def example_8_recipes(doc_path: str) -> None:
 # ---------------------------------------------------------------------------
 
 def example_9_local_vision(doc_path: str) -> None:
-    print(f"\n=== 9. Local vision ===")
+    print("\n=== 9. Local vision ===")
     print("This section instantiates local vision models (requires GPU/large deps).")
     print("Uncomment the relevant provider block to run.")
 
@@ -330,7 +333,7 @@ def example_9_local_vision(doc_path: str) -> None:
 
     # 9b. SmolVLM 2.2B (CPU-friendly) — pip install "multixtract[smolvlm]"
     # from multixtract.providers import SmolVLMVisionModel
-    # vision_cpu = SmolVLMVisionModel()   # 2.2B default; use "HuggingFaceTB/SmolVLM-500M-Instruct" for extreme constraints
+    # vision_cpu = SmolVLMVisionModel()  # use SmolVLM-500M-Instruct for CPU-constrained envs
     # _, images = extract_document(doc_path)
     # for img in images[:3]:
     #     res = vision_cpu.analyze(img["image_bytes"], ext=img["ext"])
@@ -373,7 +376,7 @@ def example_10_synthetic_chart() -> None:
 
     vision = OpenAIVisionModel(api_key=openai_key, model="gpt-4o")
     res = vision.analyze(img_bytes, ext="png")
-    print(f"\n=== 10. Synthetic chart ===")
+    print("\n=== 10. Synthetic chart ===")
     print("CAPTION:    ", res.caption)
     print("OCR_TEXT:   ", res.ocr_text)
     print("DESCRIPTION:", res.description)

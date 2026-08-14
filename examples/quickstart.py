@@ -15,7 +15,6 @@ Run a single example:
 import os
 import sys
 
-
 # ---------------------------------------------------------------------------
 # Example 1 — Extract text and tables from a PDF (no embeddings, no cloud)
 # ---------------------------------------------------------------------------
@@ -42,7 +41,7 @@ def example_1_extract_text_and_tables(path: str) -> None:
 
 def example_2_chunk(path: str) -> None:
     """Split extracted text into RAG-ready chunks."""
-    from multixtract import extract_document, chunk_document
+    from multixtract import chunk_document, extract_document
 
     document, _ = extract_document(path)
     base_name = os.path.splitext(os.path.basename(path))[0]
@@ -53,7 +52,7 @@ def example_2_chunk(path: str) -> None:
     # Smaller chunks for dense technical docs
     small = chunk_document(document, base_name=base_name, target_tokens=200, overlap_tokens=20)
 
-    print(f"\n=== Example 2: chunking ===")
+    print("\n=== Example 2: chunking ===")
     print(f"Default (~500 tok): {len(chunks)} chunks")
     print(f"Small   (~200 tok): {len(small)} chunks")
 
@@ -102,7 +101,7 @@ def example_3_standalone_utilities() -> None:
 def example_4_openai_pipeline(path: str) -> None:
     """Vision + embeddings via OpenAI, outputs written to ./output/."""
     from multixtract import Pipeline
-    from multixtract.providers import OpenAIVisionModel, OpenAIEmbedder
+    from multixtract.providers import OpenAIEmbedder, OpenAIVisionModel
     from multixtract.providers.storage import LocalDiskStore
 
     api_key = os.environ.get("OPENAI_API_KEY")
@@ -117,7 +116,7 @@ def example_4_openai_pipeline(path: str) -> None:
     )
     result = pipeline.process(path)
 
-    print(f"\n=== Example 4: OpenAI pipeline ===")
+    print("\n=== Example 4: OpenAI pipeline ===")
     print(f"Document : {result.base_name}")
     print(f"Chunks   : {len(result.chunks)}")
     print(f"Images   : {len(result.image_index)}")
@@ -144,11 +143,11 @@ def example_5_extraction_only_to_disk(path: str) -> None:
     )
     result = pipeline.process(path, skip_if_exists=False)
 
-    print(f"\n=== Example 5: extraction-only to disk ===")
+    print("\n=== Example 5: extraction-only to disk ===")
     print(f"Document : {result.base_name}")
     print(f"Chunks   : {len(result.chunks)}")
     print(f"Images   : {len(result.image_index)} (metadata only, no vision called)")
-    print(f"Output   : ./output/")
+    print("Output   : ./output/")
 
 
 # ---------------------------------------------------------------------------
