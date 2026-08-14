@@ -8,30 +8,51 @@ build-backend = "hatchling.build"
 
 [project]
 name = "multixtract"
-version = "0.1.1"
+version = "0.1.2"
 description = "Vendor-neutral PDF/document extraction: text, tables, and vision-described images, chunked and embedded for search & RAG."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { file = "LICENSE" }
 authors = [{ name = "Namrata Srivastava", email = "srivnamrata@yahoo.co.in" }]
-keywords = ["pdf", "extraction", "ocr", "vision", "embeddings", "rag", "chunking"]
+keywords = [
+    "pdf", "docx", "pptx", "xlsx", "epub",
+    "extraction", "ocr", "chunking", "embeddings",
+    "rag", "retrieval-augmented-generation",
+    "vision", "gpt-4o", "multimodal",
+    "llm", "azure", "openai",
+    "document-ai", "document-processing",
+    "table-extraction", "text-extraction",
+    "azure-ai-search", "vector-search",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
+    # Audiences
     "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Information Technology",
+    # License
     "License :: OSI Approved :: MIT License",
+    # Python versions
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3 :: Only",
+    # Topics
     "Topic :: Text Processing",
     "Topic :: Text Processing :: Indexing",
-    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Topic :: Text Processing :: Linguistic",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet :: WWW/HTTP :: Indexing/Search",
+    "Topic :: Multimedia :: Graphics :: Capture",
+    # Environment
     "Environment :: Console",
     "Operating System :: OS Independent",
+    "Typing :: Typed",
 ]
 
 # Core stays tiny: only the image-filter pipeline deps. Format parsers and
@@ -72,7 +93,7 @@ all = ["multixtract[pdf,docx,pptx,xlsx,html,rtf,epub,imaging,openai,azure,llama,
 
 [project.urls]
 Homepage = "https://github.com/srivnamrata/multixtract"
-Documentation = "https://github.com/srivnamrata/multixtract#readme"
+Documentation = "https://srivnamrata.github.io/multixtract/"
 Issues = "https://github.com/srivnamrata/multixtract/issues"
 Changelog = "https://github.com/srivnamrata/multixtract/blob/main/CHANGELOG.md"
 

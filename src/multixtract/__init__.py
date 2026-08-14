@@ -35,7 +35,7 @@ try:
     from importlib.metadata import version as _version
     __version__ = _version("multixtract")
 except _PackageNotFoundError:
-    __version__ = "0.1.1"
+    __version__ = "0.1.2"
 
 __all__ = [
     "Pipeline",
