@@ -40,3 +40,4 @@ python benchmarks/run_benchmarks.py --json    # emit results as JSON
 - `vision_workers` (default 6) parallelises vision API calls across images
 - `Pipeline` batches embedding calls automatically
 - `skip_if_exists=True` (default) skips documents already in the store — safe to re-run on a growing corpus
+- `upload_workers` (default 4) on `split_chunks_file()` parallelises individual chunk writes

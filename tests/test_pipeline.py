@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 from PIL import Image
 
 from multixtract.interfaces import PipelineConfig, VisionResult
-from multixtract.pipeline import ExtractionResult, Pipeline
+from multixtract.pipeline import ExtractionResult, Pipeline, SplitStats
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -295,3 +295,152 @@ def test_pipeline_full_run_with_vision_and_store():
     assert result.image_index[0]["caption"] == "test chart"
     assert mock_store.put_bytes.called  # image bytes stored
     assert mock_store.put_json.call_count == 3  # image_json, chunks_json, doc_json
+
+
+# ---------------------------------------------------------------------------
+# Pipeline.split_chunks_file
+# ---------------------------------------------------------------------------
+
+def _make_chunks_data(n_chunks: int = 2, chunk_type: str = "text") -> dict:
+    chunks = []
+    for i in range(n_chunks):
+        chunks.append({
+            "chunk_id":   f"report__p1_{chunk_type}_{i}",
+            "chunk_type": chunk_type,
+            "pg_num":     1,
+            "chunk_idx":  i,
+            "content":    f"Content of chunk {i}.",
+            "token_cnt":  5,
+            "metadata":   {"total_txt_chunks_on_pg": n_chunks} if chunk_type == "text" else {},
+            "embedding":  None,
+        })
+    return {
+        "_header": {
+            "file_name": "report.pdf",
+            "file_path": "/data/report.pdf",
+            "total_pgs": 3,
+        },
+        "chunks": chunks,
+    }
+
+
+def test_split_chunks_file_creates_one_json_per_chunk():
+    written = {}
+
+    def fake_put_json(path, data, compact=False):
+        written[path] = data
+        return path
+
+    mock_store = MagicMock()
+    mock_store.put_json.side_effect = fake_put_json
+    mock_store.exists.return_value = False
+
+    pipeline = Pipeline(store=mock_store)
+    stats = pipeline.split_chunks_file(
+        _make_chunks_data(n_chunks=3), timestamp="2026-08-14T00:00:00Z"
+    )
+
+    assert stats.created == 3
+    assert stats.skipped == 0
+    assert stats.failed == 0
+    assert len(written) == 3
+
+
+def test_split_chunks_file_output_fields_match_notebook():
+    written = {}
+
+    def fake_put_json(path, data, compact=False):
+        written[path] = data
+        return path
+
+    mock_store = MagicMock()
+    mock_store.put_json.side_effect = fake_put_json
+    mock_store.exists.return_value = False
+
+    pipeline = Pipeline(store=mock_store)
+    pipeline.split_chunks_file(_make_chunks_data(n_chunks=1), timestamp="2026-08-14T00:00:00Z")
+
+    doc = list(written.values())[0]
+    expected_fields = {
+        "id", "doc_id", "file_name", "file_path", "file_type", "total_pgs",
+        "chunk_type", "pg_num", "chunk_idx", "token_cnt", "content",
+        "content_vector", "last_updated", "total_txt_chunks_on_pg",
+    }
+    assert expected_fields <= set(doc.keys()), (
+        f"Missing fields: {expected_fields - set(doc.keys())}"
+    )
+    assert "metadata" not in doc
+    assert "embedding" not in doc
+    assert doc["content_vector"] is None
+    assert doc["file_type"] == "pdf"
+    assert doc["doc_id"] == "report"
+
+
+def test_split_chunks_file_skips_existing():
+    mock_store = MagicMock()
+    mock_store.exists.return_value = True  # all chunks already exist
+
+    pipeline = Pipeline(store=mock_store)
+    stats = pipeline.split_chunks_file(
+        _make_chunks_data(n_chunks=2), timestamp="2026-08-14T00:00:00Z"
+    )
+
+    assert stats.skipped == 2
+    assert stats.created == 0
+    mock_store.put_json.assert_not_called()
+
+
+def test_split_chunks_file_returns_empty_stats_for_no_chunks():
+    mock_store = MagicMock()
+    pipeline = Pipeline(store=mock_store)
+    stats = pipeline.split_chunks_file({"_header": {}, "chunks": []})
+
+    assert stats == SplitStats()
+    mock_store.put_json.assert_not_called()
+
+
+def test_split_chunks_file_raises_without_store():
+    pipeline = Pipeline(store=None)
+    try:
+        pipeline.split_chunks_file(_make_chunks_data())
+        assert False, "Expected RuntimeError"
+    except RuntimeError:
+        pass
+
+
+def test_split_chunks_file_counts_deduped_image_chunks():
+    echo_content = (
+        "Caption: A chart\n\n"
+        "OCR Text: Q1 Q2\n\n"
+        "Description: CAPTION: A chart\nOCR_TEXT: Q1 Q2\nDESCRIPTION: Bar chart."
+    )
+    chunks_data = {
+        "_header": {"file_name": "report.pdf", "file_path": "/data/report.pdf", "total_pgs": 1},
+        "chunks": [{
+            "chunk_id":   "report__p1_image_0",
+            "chunk_type": "image",
+            "pg_num":     1,
+            "chunk_idx":  0,
+            "content":    echo_content,
+            "token_cnt":  20,
+            "metadata":   {"img_id": "pg1_img0", "img_path": "pg1_img0.png"},
+            "embedding":  None,
+        }],
+    }
+
+    written = {}
+
+    def fake_put_json(path, data, compact=False):
+        written[path] = data
+        return path
+
+    mock_store = MagicMock()
+    mock_store.put_json.side_effect = fake_put_json
+    mock_store.exists.return_value = False
+
+    pipeline = Pipeline(store=mock_store)
+    stats = pipeline.split_chunks_file(chunks_data, timestamp="2026-08-14T00:00:00Z")
+
+    assert stats.deduped == 1
+    doc = list(written.values())[0]
+    assert len(doc["content"]) < len(echo_content)

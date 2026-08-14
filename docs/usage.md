@@ -122,6 +122,52 @@ from multixtract.providers.storage import LocalDiskStore
 result = Pipeline(vision=None, embedder=None, store=LocalDiskStore("./output")).process("report.pdf")
 ```
 
+### Write individual chunk documents in one call
+
+Pass `split_chunks=True` to also split `_chunks.json` into individual flat documents after processing — one file per chunk, ready for Azure AI Search or any vector store.
+
+```python
+result = pipeline.process("report.pdf", split_chunks=True)
+print(result.split_stats)
+# SplitStats(created=47, skipped=0, failed=0, deduped=2)
+```
+
+Each individual chunk is written to `{individual_chunks_subdir}/{doc_name}/{id}.json`.  See [data-model.md](data-model.md) for the flat field structure.
+
+### Split an existing _chunks.json
+
+When you already have `_chunks.json` files on disk and want to split them without re-extracting:
+
+```python
+import json
+from multixtract import Pipeline
+from multixtract.providers.storage import LocalDiskStore
+
+pipeline = Pipeline(store=LocalDiskStore("./output"))
+
+with open("output/chunks/report_chunks.json", encoding="utf-8") as f:
+    chunks_data = json.load(f)
+
+stats = pipeline.split_chunks_file(chunks_data)
+print(stats)  # SplitStats(created=47, skipped=0, failed=0, deduped=2)
+```
+
+### Build an index document manually
+
+`build_index_document` is available as a standalone function if you need to transform chunks outside the pipeline:
+
+```python
+from datetime import datetime, timezone
+from multixtract import build_index_document
+
+timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+header = {"file_name": "report.pdf", "file_path": "/data/report.pdf", "total_pgs": 12}
+index_doc = build_index_document(chunk, header, timestamp)
+# flat dict: id, doc_id, file_name, file_path, file_type, total_pgs,
+#            chunk_type, pg_num, chunk_idx, token_cnt, content,
+#            content_vector, last_updated + type-specific fields
+```
+
 ### Force reprocessing
 
 ```python
@@ -138,17 +184,18 @@ All fields are optional — pass only what you need to override.
 from multixtract import PipelineConfig
 
 config = PipelineConfig(
-    min_image_size=150,         # major-dimension pixel threshold (default 100)
-    min_image_size_minor=100,   # minor-dimension pixel threshold (default 75)
-    reference_img_dir="./logos",# folder of known logo PNGs to filter out
-    vision_workers=8,           # parallel vision API calls (default 6)
-    chunk_target_tokens=300,    # target tokens per text chunk (default 500)
-    chunk_overlap_tokens=30,    # overlap between chunks (default 50)
-    embed_text_limit=6000,      # max chars sent to embedder per chunk (default 8000)
-    images_subdir="images",     # storage sub-folder (default "extracted_images")
+    min_image_size=150,              # major-dimension pixel threshold (default 100)
+    min_image_size_minor=100,        # minor-dimension pixel threshold (default 75)
+    reference_img_dir="./logos",     # folder of known logo PNGs to filter out
+    vision_workers=8,                # parallel vision API calls (default 6)
+    chunk_target_tokens=300,         # target tokens per text chunk (default 500)
+    chunk_overlap_tokens=30,         # overlap between chunks (default 50)
+    embed_text_limit=6000,           # max chars sent to embedder per chunk (default 8000)
+    images_subdir="images",          # storage sub-folder (default "extracted_images")
     doc_json_subdir="documents",
     image_json_subdir="image_meta",
     chunks_subdir="chunks",
+    individual_chunks_subdir="index_docs",  # default "individual_chunks"
 )
 ```
 

@@ -91,6 +91,9 @@ class EpubExtractor:
                     "imgs": [],
                 })
 
+            if not pages:
+                pages.append({"pg_num": 1, "txt": "", "tables": [], "imgs": []})
+
             document = {
                 "_base_name": base_name,
                 "metadata": {

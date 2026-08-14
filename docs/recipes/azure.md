@@ -33,6 +33,18 @@ pipeline = Pipeline(
 result = pipeline.process("report.pdf")
 ```
 
+## With individual chunk documents for Azure AI Search
+
+Pass `split_chunks=True` to write one flat JSON per chunk alongside the `_chunks.json`.  Each document has `id`, `content_vector`, and flattened metadata — ready to push directly to an Azure AI Search index.
+
+```python
+result = pipeline.process("report.pdf", split_chunks=True)
+print(result.split_stats)
+# SplitStats(created=47, skipped=0, failed=0, deduped=2)
+```
+
+Individual chunk files are written to `{individual_chunks_subdir}/{doc_name}/{id}.json` (default: `individual_chunks/`).
+
 ## With service principal authentication
 
 ```python

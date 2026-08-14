@@ -149,3 +149,4 @@ class PipelineConfig:
     doc_json_subdir: str = "jsons"
     image_json_subdir: str = "image_jsons"
     chunks_subdir: str = "chunks"
+    individual_chunks_subdir: str = "individual_chunks"

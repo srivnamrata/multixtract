@@ -4,6 +4,31 @@ All notable changes to this project will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] — 2026-08-14
+
+### Added
+
+**Individual chunk splitting**
+- `Pipeline.process()` — new `split_chunks: bool = False` parameter; when `True`, automatically splits `_chunks.json` into individual per-chunk documents after processing and populates `result.split_stats`
+- `Pipeline.split_chunks_file(chunks_data, timestamp, skip_if_exists, upload_workers)` — standalone method to split any `_chunks.json` dict into individual flat documents; parallel writes via `upload_workers` (default 4)
+- `build_index_document(chunk, header, timestamp)` — public function that transforms a raw chunk dict into a flat, AI-Search-optimized document: renames `embedding` → `content_vector`, promotes `metadata` fields to top level, adds `id`, `doc_id`, `file_name`, `file_path`, `file_type`, `total_pgs`, `last_updated`
+- `SplitStats` dataclass — returned by `split_chunks_file`; fields: `created`, `skipped`, `failed`, `deduped`
+
+**`ExtractionResult`**
+- New optional field `split_stats: SplitStats | None` — populated when `split_chunks=True`
+
+**`PipelineConfig`**
+- New field `individual_chunks_subdir: str = "individual_chunks"` — storage sub-folder for per-chunk documents
+
+**Public API**
+- `safe_index_key(s)` — sanitizes any string to a valid Azure AI Search document key (`[A-Za-z0-9_\-=]`); applied automatically to all `chunk_id` and `id` values
+- `build_index_document`, `SplitStats`, `safe_index_key` exported from top-level `multixtract`
+
+**Chunking internals**
+- `_chunks.json` schema: `{"_header": {"file_path", "file_name", "total_pgs"}, "chunks": [...]}`; each chunk has `chunk_id`, `chunk_type`, `pg_num`, `chunk_idx`, `content`, `token_cnt`, `metadata` (nested, type-specific), `embedding`
+- Token count computed once per chunk (no double `estimate_tokens` call)
+- `_splits_from_buffer()` internal helper returns `(content, token_cnt)` pairs; both code paths (elements + legacy) share it
+
 ## [0.1.1] — 2026-08-01
 
 ### Added

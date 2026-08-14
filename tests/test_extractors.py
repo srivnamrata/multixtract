@@ -29,13 +29,27 @@ def _assert_doc_schema(doc: dict, base_name: str) -> None:
     assert len(doc["pgs"]) >= 1
 
 
-def _assert_page_schema(page: dict) -> None:
+def _assert_page_schema(page: dict, has_elements: bool = False) -> None:
     assert "pg_num" in page
     assert isinstance(page["pg_num"], int)
     assert page["pg_num"] >= 1
     assert isinstance(page["txt"], str)
     assert isinstance(page["tables"], list)
     assert isinstance(page["imgs"], list)
+    if has_elements:
+        assert "elements" in page, "PDF page must carry 'elements' key"
+        assert isinstance(page["elements"], list)
+        for elem in page["elements"]:
+            assert "type" in elem
+            assert elem["type"] in ("text", "table")
+            if elem["type"] == "text":
+                assert isinstance(elem.get("content"), str)
+            else:
+                assert isinstance(elem.get("rows"), list)
+    else:
+        assert "elements" not in page, (
+            f"legacy-path page must not carry 'elements'; got keys: {list(page)}"
+        )
 
 
 def _assert_prepared_schema(img: dict) -> None:
@@ -68,7 +82,7 @@ class TestPdfExtractor:
         from multixtract.extractors.pdf import PdfExtractor
         doc, _ = PdfExtractor().extract(str(FIXTURES / "sample.pdf"))
         for page in doc["pgs"]:
-            _assert_page_schema(page)
+            _assert_page_schema(page, has_elements=True)
 
     def test_text_extracted(self):
         from multixtract.extractors.pdf import PdfExtractor
@@ -354,3 +368,113 @@ class TestEpubExtractor:
         from multixtract.extractors.epub import EpubExtractor
         from multixtract.extractors.registry import default_registry
         assert isinstance(default_registry.get("file.epub"), EpubExtractor)
+
+
+# ---------------------------------------------------------------------------
+# Markdown
+# ---------------------------------------------------------------------------
+
+class TestMarkdownExtractor:
+    def test_basic_extraction(self, tmp_path):
+        md = tmp_path / "doc.md"
+        md.write_text(
+            "# Section One\n\nHello world.\n\n# Section Two\n\nMore text.",
+            encoding="utf-8",
+        )
+        from multixtract.extractors.markdown import MarkdownExtractor
+        doc, prepared = MarkdownExtractor().extract(str(md))
+        _assert_doc_schema(doc, "doc")
+        assert prepared == []
+
+    def test_page_schema(self, tmp_path):
+        md = tmp_path / "doc.md"
+        md.write_text("# Title\n\nSome content here.", encoding="utf-8")
+        from multixtract.extractors.markdown import MarkdownExtractor
+        doc, _ = MarkdownExtractor().extract(str(md))
+        for page in doc["pgs"]:
+            _assert_page_schema(page)
+
+    def test_blank_file_returns_one_page(self, tmp_path):
+        md = tmp_path / "empty.md"
+        md.write_text("", encoding="utf-8")
+        from multixtract.extractors.markdown import MarkdownExtractor
+        doc, _ = MarkdownExtractor().extract(str(md))
+        assert len(doc["pgs"]) >= 1
+        assert doc["pgs"][0]["pg_num"] == 1
+
+    def test_table_parsed(self, tmp_path):
+        md = tmp_path / "doc.md"
+        md.write_text("# Data\n\n| A | B |\n|---|---|\n| 1 | 2 |\n", encoding="utf-8")
+        from multixtract.extractors.markdown import MarkdownExtractor
+        doc, _ = MarkdownExtractor().extract(str(md))
+        all_tables = [t for p in doc["pgs"] for t in p["tables"]]
+        assert len(all_tables) >= 1
+
+    def test_nonexistent_returns_empty(self):
+        from multixtract.extractors.markdown import MarkdownExtractor
+        doc, prepared = MarkdownExtractor().extract("/no/such/file.md")
+        assert doc["pgs"] == []
+        assert prepared == []
+
+    def test_registered(self):
+        from multixtract.extractors.markdown import MarkdownExtractor
+        from multixtract.extractors.registry import default_registry
+        assert isinstance(default_registry.get("file.md"), MarkdownExtractor)
+
+
+# ---------------------------------------------------------------------------
+# Minimum-page guarantee (EPUB and Markdown must never return pgs=[])
+# ---------------------------------------------------------------------------
+
+class TestMinimumPageGuarantee:
+    def test_epub_all_blank_chapters_still_returns_one_page(self, tmp_path):
+        """An EPUB whose every chapter has empty content must still produce one page."""
+        import zipfile
+        epub_path = tmp_path / "blank.epub"
+        # Minimal valid EPUB ZIP with one document item that has no body text
+        container_xml = (
+            '<?xml version="1.0"?>'
+            '<container version="1.0"'
+            ' xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+            '<rootfiles>'
+            '<rootfile full-path="content.opf"'
+            ' media-type="application/oebps-package+xml"/>'
+            '</rootfiles></container>'
+        )
+        opf = (
+            '<?xml version="1.0" encoding="utf-8"?>'
+            '<package xmlns="http://www.idpf.org/2007/opf"'
+            ' version="2.0" unique-identifier="uid">'
+            '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">'
+            '<dc:identifier id="uid">blank</dc:identifier>'
+            '<dc:title>Blank</dc:title><dc:language>en</dc:language></metadata>'
+            '<manifest>'
+            '<item id="ch1" href="ch1.xhtml"'
+            ' media-type="application/xhtml+xml"/>'
+            '</manifest>'
+            '<spine><itemref idref="ch1"/></spine></package>'
+        )
+        ch1 = (
+            '<?xml version="1.0" encoding="utf-8"?>'
+            '<!DOCTYPE html><html><body></body></html>'
+        )
+        with zipfile.ZipFile(epub_path, "w") as zf:
+            zf.writestr("mimetype", "application/epub+zip")
+            zf.writestr("META-INF/container.xml", container_xml)
+            zf.writestr("content.opf", opf)
+            zf.writestr("ch1.xhtml", ch1)
+
+        pytest.importorskip("ebooklib")
+        pytest.importorskip("bs4")
+        from multixtract.extractors.epub import EpubExtractor
+        doc, _ = EpubExtractor().extract(str(epub_path))
+        assert len(doc["pgs"]) >= 1
+        assert doc["pgs"][0]["pg_num"] == 1
+
+    def test_markdown_blank_file_returns_one_page(self, tmp_path):
+        md = tmp_path / "blank.md"
+        md.write_text("   \n   \n", encoding="utf-8")
+        from multixtract.extractors.markdown import MarkdownExtractor
+        doc, _ = MarkdownExtractor().extract(str(md))
+        assert len(doc["pgs"]) >= 1
+        assert doc["pgs"][0]["pg_num"] == 1

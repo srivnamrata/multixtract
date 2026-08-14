@@ -10,11 +10,9 @@ embeddings already computed during vision analysis.
 """
 from __future__ import annotations
 
-import datetime
 import logging
 import re
-from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 log = logging.getLogger("multixtract.chunking")
 
@@ -194,40 +192,93 @@ def build_image_content(img_meta: Dict[str, Any]) -> str:
     return "\n\n".join(parts)
 
 
-def _flush_text_elements(
-    text_buffer: List[str],
-    base_name: str,
-    page_num: int,
-    elem_start: int,
-    doc_meta: Dict[str, Any],
-    target_tokens: int = CHUNK_TARGET_TOKENS,
-    overlap_tokens: int = CHUNK_OVERLAP_TOKENS,
-) -> List[Dict[str, Any]]:
-    """Emit sliding-window text chunks from an accumulated text buffer.
+def build_index_document(
+    chunk: Dict[str, Any],
+    header: Dict[str, Any],
+    timestamp: str,
+) -> Dict[str, Any]:
+    """Transform a raw chunk + ``_header`` into a flat, AI-Search-optimized document.
 
-    Called when a table element or end-of-page is encountered during the
-    elements walk, so text before/between/after tables is chunked in order.
+    Mirrors the notebook's ``_build_index_document``.  Flat structure, no nested
+    objects.  Type-specific fields are included only when present.
+
+    Args:
+        chunk:     One chunk dict from ``_chunks.json`` (output of ``chunk_document``).
+        header:    The ``_header`` dict from the same ``_chunks.json`` file.
+        timestamp: ISO-8601 UTC string stamped onto ``last_updated``.
+
+    Returns:
+        Flat dict ready for Azure AI Search (or any document store).  Key fields:
+        ``id``, ``doc_id``, ``file_name``, ``file_path``, ``file_type``,
+        ``total_pgs``, ``chunk_type``, ``pg_num``, ``chunk_idx``, ``token_cnt``,
+        ``content``, ``content_vector``, ``last_updated`` plus type-specific fields.
     """
-    if not text_buffer:
-        return []
-    merged = "\n\n".join(text_buffer)
+    chunk_id   = chunk.get("chunk_id", "")
+    chunk_type = chunk.get("chunk_type", "unknown")
+    metadata   = chunk.get("metadata", {})
+
+    safe_id = safe_index_key(chunk_id)
+    # "19_093_J_FB__p1_text_0" → "19_093_J_FB"
+    doc_id = chunk_id.split("__")[0] if "__" in chunk_id else chunk_id
+
+    file_name = header.get("file_name", "")
+    file_type = (
+        file_name.rsplit(".", 1)[-1].lower()
+        if "." in file_name
+        else ""
+    )
+
+    content = chunk.get("content", "")
+    if chunk_type == "image":
+        content = _deduplicate_image_content(content)
+
+    doc: Dict[str, Any] = {
+        "id":            safe_id,
+        "doc_id":        doc_id,
+        "file_name":     file_name,
+        "file_path":     header.get("file_path", ""),
+        "file_type":     file_type,
+        "total_pgs":     header.get("total_pgs", 0),
+        "chunk_type":    chunk_type,
+        "pg_num":        chunk.get("pg_num", 0),
+        "chunk_idx":     chunk.get("chunk_idx", 0),
+        "token_cnt":     chunk.get("token_cnt", 0),
+        "content":       content,
+        "content_vector": chunk.get("embedding"),
+        "last_updated":  timestamp,
+    }
+
+    if chunk_type == "image":
+        doc["img_id"]   = metadata.get("img_id", "")
+        doc["img_path"] = metadata.get("img_path", "")
+    elif chunk_type == "table":
+        doc["num_rows"] = metadata.get("num_rows")
+        doc["num_col"]  = metadata.get("num_col")
+    elif chunk_type == "text":
+        doc["total_txt_chunks_on_pg"] = metadata.get("total_txt_chunks_on_pg")
+
+    return doc
+
+
+def _splits_from_buffer(
+    text_buffer: List[str],
+    target_tokens: int,
+    overlap_tokens: int,
+) -> List[Tuple[str, int]]:
+    """Split a raw text buffer into ``(content, token_cnt)`` pairs.
+
+    Joins the buffer with paragraph breaks, runs the sliding-window splitter,
+    and filters out chunks below ``CHUNK_MIN_TOKENS``. Token count is computed
+    once here and carried forward so callers never call ``estimate_tokens``
+    twice on the same content.
+    """
     result = []
-    split_index = 0
-    for content in split_text_into_chunks(merged, target_tokens, overlap_tokens):
-        if estimate_tokens(content) < CHUNK_MIN_TOKENS:
-            continue
-        result.append({
-            "chunk_id": safe_index_key(f"{base_name}__p{page_num}_e{elem_start}_txt_{split_index}"),
-            "chunk_type": "text",
-            "pg_num": page_num,
-            "chunk_idx": elem_start,
-            "content": content,
-            "token_cnt": estimate_tokens(content),
-            "metadata": {"split_idx": split_index},
-            "embedding": None,
-            **doc_meta,
-        })
-        split_index += 1
+    for content in split_text_into_chunks(
+        "\n\n".join(text_buffer), target_tokens, overlap_tokens
+    ):
+        token_cnt = estimate_tokens(content)
+        if token_cnt >= CHUNK_MIN_TOKENS:
+            result.append((content, token_cnt))
     return result
 
 
@@ -237,18 +288,17 @@ def chunk_document(
     image_embeddings: Optional[Dict[str, List[float]]] = None,
     target_tokens: int = CHUNK_TARGET_TOKENS,
     overlap_tokens: int = CHUNK_OVERLAP_TOKENS,
-    file_path: Optional[str] = None,
-    file_name: Optional[str] = None,
-    file_type: Optional[str] = None,
-    doc_id: Optional[str] = None,
-    last_updated: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Split an assembled document dict into granular chunks.
 
     Pages with an ``elements`` list (PDF new schema) are chunked in document
-    order -- text blocks through the sliding-window splitter and tables as
+    order — text blocks through the sliding-window splitter and tables as
     Markdown, interleaved. Pages using the legacy ``txt``/``tables`` schema
     (docx, pptx, xlsx) are handled by the original path unchanged.
+
+    ``total_txt_chunks_on_pg`` is computed per page before chunks are built
+    (pre-split approach) and stamped directly into each text chunk's
+    ``metadata`` — no second pass needed.
 
     Args:
         document: ``{metadata, pgs:[...]}}``
@@ -257,96 +307,101 @@ def chunk_document(
             chunks (avoids re-embedding).
         target_tokens: Target token count per text chunk (default 500).
         overlap_tokens: Overlap token count between chunks (default 50).
-        file_path: Full path or URL to the source file.
-        file_name: Filename with extension (inferred from base_name + file_type if omitted).
-        file_type: File format string, e.g. ``"pdf"`` (inferred from document metadata if omitted).
-        doc_id: Document identifier (defaults to base_name).
-        last_updated: ISO-8601 timestamp string (defaults to current UTC time).
     """
     chunks: List[Dict[str, Any]] = []
     image_embeddings = image_embeddings or {}
-
-    # ── Resolve document-level fields ────────────────────────────────────────
-    _doc_id       = doc_id or base_name
-    _file_type    = file_type or (document.get("metadata") or {}).get("format", "")
-    _file_name    = file_name or (f"{base_name}.{_file_type}" if _file_type else base_name)
-    _file_path    = file_path or ""
-    _meta         = document.get("metadata") or {}
-    _total_pgs    = _meta.get("page_count") or len(document.get("pgs", []))
-    _last_updated = last_updated or datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    doc_meta: Dict[str, Any] = {
-        "doc_id":       _doc_id,
-        "file_name":    _file_name,
-        "file_path":    _file_path,
-        "file_type":    _file_type,
-        "total_pgs":    _total_pgs,
-        "last_updated": _last_updated,
-    }
 
     for page in document.get("pgs", []):
         page_num = page["pg_num"]
 
         # ── Elements path (PDF: ordered text + table blocks) ─────────────────
         if "elements" in page:
+            # Single pass: walk elements, accumulating consecutive text nodes
+            # into a buffer. On each table (or end-of-page), split the buffer
+            # into chunks. All splits are collected first so total_txt_chunks_on_pg
+            # is known before any chunk dict is built.
+            #
+            # Each item in `ordered_items` is either:
+            #   ("text",  splits)       — list of (content, token_cnt) tuples, pre-computed
+            #   ("table", elem["rows"]) — raw table rows for markdown
+            ordered_items: List[Tuple[str, Any]] = []
             text_buffer: List[str] = []
-            text_elem_start = 0
-            for elem_idx, elem in enumerate(page["elements"]):
+
+            for elem in page["elements"]:
                 if elem["type"] == "text":
-                    if not text_buffer:
-                        text_elem_start = elem_idx
                     text_buffer.append(elem["content"])
                 elif elem["type"] == "table":
-                    chunks.extend(
-                        _flush_text_elements(
-                            text_buffer, base_name, page_num, text_elem_start,
-                            doc_meta, target_tokens, overlap_tokens,
-                        )
-                    )
-                    text_buffer = []
-                    content = table_to_markdown(elem["rows"])
-                    if content:
-                        rows = elem["rows"]
-                        _cid = safe_index_key(f"{base_name}__p{page_num}_e{elem_idx}_tbl")
+                    if text_buffer:
+                        ordered_items.append(("text", _splits_from_buffer(
+                            text_buffer, target_tokens, overlap_tokens,
+                        )))
+                        text_buffer = []
+                    ordered_items.append(("table", elem["rows"]))
+
+            if text_buffer:
+                ordered_items.append(("text", _splits_from_buffer(
+                    text_buffer, target_tokens, overlap_tokens,
+                )))
+
+            total_txt_on_pg = sum(
+                len(splits) for kind, splits in ordered_items if kind == "text"
+            )
+
+            # Emit chunk dicts in document order from the collected items.
+            running_txt_idx = 0
+            running_tbl_idx = 0
+            for kind, payload in ordered_items:
+                if kind == "text":
+                    for content, token_cnt in payload:
                         chunks.append({
-                            "chunk_id":   _cid,
+                            "chunk_id":   safe_index_key(
+                                f"{base_name}__p{page_num}_text_{running_txt_idx}"
+                            ),
+                            "chunk_type": "text",
+                            "pg_num":     page_num,
+                            "chunk_idx":  running_txt_idx,
+                            "content":    content,
+                            "token_cnt":  token_cnt,
+                            "metadata":   {"total_txt_chunks_on_pg": total_txt_on_pg},
+                            "embedding":  None,
+                        })
+                        running_txt_idx += 1
+                else:  # "table"
+                    content = table_to_markdown(payload)
+                    if content:
+                        chunks.append({
+                            "chunk_id":   safe_index_key(
+                                f"{base_name}__p{page_num}_table_{running_tbl_idx}"
+                            ),
                             "chunk_type": "table",
                             "pg_num":     page_num,
-                            "chunk_idx":  elem_idx,
+                            "chunk_idx":  running_tbl_idx,
                             "content":    content,
                             "token_cnt":  estimate_tokens(content),
                             "metadata": {
-                                "num_rows": len(rows),
-                                "num_col":  len(rows[0]) if rows else 0,
+                                "num_rows": len(payload),
+                                "num_col":  len(payload[0]) if payload else 0,
                             },
                             "embedding": None,
-                            **doc_meta,
                         })
-            chunks.extend(
-                _flush_text_elements(
-                    text_buffer, base_name, page_num, text_elem_start,
-                    doc_meta, target_tokens, overlap_tokens,
-                )
-            )
+                    running_tbl_idx += 1
 
         # ── Legacy path (docx / pptx / xlsx: txt + tables) ───────────────────
         else:
-            text_splits = [
-                s for s in split_text_into_chunks(
-                    page.get("txt") or "", target_tokens, overlap_tokens)
-                if estimate_tokens(s) >= CHUNK_MIN_TOKENS
-            ]
-            for split_index, content in enumerate(text_splits):
+            text_splits = _splits_from_buffer(
+                [page.get("txt") or ""], target_tokens, overlap_tokens,
+            )
+            total_txt_on_pg = len(text_splits)
+            for split_index, (content, token_cnt) in enumerate(text_splits):
                 chunks.append({
-                    "chunk_id":   safe_index_key(f"{base_name}__p{page_num}_e0_txt_{split_index}"),
+                    "chunk_id":   safe_index_key(f"{base_name}__p{page_num}_text_{split_index}"),
                     "chunk_type": "text",
                     "pg_num":     page_num,
                     "chunk_idx":  split_index,
                     "content":    content,
-                    "token_cnt":  estimate_tokens(content),
-                    "metadata":   {},
+                    "token_cnt":  token_cnt,
+                    "metadata":   {"total_txt_chunks_on_pg": total_txt_on_pg},
                     "embedding":  None,
-                    **doc_meta,
                 })
 
             for table_idx, table in enumerate(page.get("tables") or []):
@@ -354,7 +409,7 @@ def chunk_document(
                 if not content:
                     continue
                 chunks.append({
-                    "chunk_id":   safe_index_key(f"{base_name}__p{page_num}_e{table_idx}_tbl"),
+                    "chunk_id":   safe_index_key(f"{base_name}__p{page_num}_table_{table_idx}"),
                     "chunk_type": "table",
                     "pg_num":     page_num,
                     "chunk_idx":  table_idx,
@@ -365,7 +420,6 @@ def chunk_document(
                         "num_col":  len(table[0]) if table else 0,
                     },
                     "embedding": None,
-                    **doc_meta,
                 })
 
         # ── Image chunks (both paths) ─────────────────────────────────────────
@@ -384,18 +438,6 @@ def chunk_document(
                 "token_cnt":  estimate_tokens(content),
                 "metadata":   {"img_id": image_id, "img_path": img_meta.get("img_path", "")},
                 "embedding":  image_embeddings.get(image_id),
-                **doc_meta,
             })
-
-    # ── Post-process: stamp total_txt_chunks_on_pg on every text chunk ────────
-    # Count text chunks per page across both paths in one pass, then annotate.
-    txt_per_page: Dict[int, int] = defaultdict(int)
-    for chunk in chunks:
-        if chunk["chunk_type"] == "text":
-            txt_per_page[chunk["pg_num"]] += 1
-
-    for chunk in chunks:
-        if chunk["chunk_type"] == "text":
-            chunk["total_txt_chunks_on_pg"] = txt_per_page[chunk["pg_num"]]
 
     return chunks

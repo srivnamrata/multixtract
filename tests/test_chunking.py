@@ -1,6 +1,7 @@
 """Unit tests for the vendor-neutral chunking core (no SDKs required)."""
 from multixtract.chunking import (
     build_image_content,
+    build_index_document,
     chunk_document,
     split_text_into_chunks,
     table_to_markdown,
@@ -63,34 +64,30 @@ def test_chunk_document_types_and_ids():
         document,
         base_name="doc",
         image_embeddings={"page_1_img_0": [0.1, 0.2]},
-        file_path="/data/doc.pdf",
-        file_name="doc.pdf",
-        doc_id="doc-001",
-        last_updated="2026-01-01T00:00:00Z",
     )
     types = {c["chunk_type"] for c in chunks}
     assert {"text", "table", "image"} <= types
 
-    # Deterministic ids.
-    assert any(c["chunk_id"] == "doc__p1_e0_tbl" for c in chunks)
+    # Deterministic ids — notebook-aligned patterns.
+    assert any(c["chunk_id"] == "doc__p1_table_0" for c in chunks)
+    assert any(c["chunk_id"] == "doc__p1_text_0" for c in chunks)
+    assert any(c["chunk_id"] == "doc__p1_image_0" for c in chunks)
 
     # Image embedding reused.
     img_chunk = next(c for c in chunks if c["chunk_type"] == "image")
     assert img_chunk["embedding"] == [0.1, 0.2]
 
-    # Every chunk carries the document-level fields.
-    required = {"doc_id", "file_name", "file_path", "file_type", "total_pgs", "last_updated"}
+    # No document-level fields on chunks (those live in _header).
+    doc_level = {"doc_id", "file_name", "file_path", "file_type", "total_pgs", "last_updated"}
     for chunk in chunks:
-        assert required <= chunk.keys(), f"Chunk missing fields: {required - chunk.keys()}"
-        assert chunk["doc_id"] == "doc-001"
-        assert chunk["file_path"] == "/data/doc.pdf"
-        assert chunk["last_updated"] == "2026-01-01T00:00:00Z"
-        assert chunk["total_pgs"] == 1
+        assert not doc_level & chunk.keys(), (
+            f"Chunk must not carry doc-level fields: {doc_level & chunk.keys()}"
+        )
 
-    # total_txt_chunks_on_pg is present on all text chunks.
+    # total_txt_chunks_on_pg is inside metadata on all text chunks.
     text_chunks = [c for c in chunks if c["chunk_type"] == "text"]
-    assert all("total_txt_chunks_on_pg" in c for c in text_chunks)
-    assert all(c["total_txt_chunks_on_pg"] == len(text_chunks) for c in text_chunks)
+    assert all("total_txt_chunks_on_pg" in c["metadata"] for c in text_chunks)
+    assert all(c["metadata"]["total_txt_chunks_on_pg"] == len(text_chunks) for c in text_chunks)
 
 
 def test_split_text_oversized_sentence_emitted_as_own_chunk():
@@ -136,6 +133,97 @@ def test_split_text_oversized_sentence_at_start():
     assert len(chunks) <= 3, (
         f"Expected at most 3 chunks for 1 big + 3 normal sentences, got {len(chunks)}"
     )
+
+
+def test_build_index_document_text_chunk():
+    chunk = {
+        "chunk_id":   "report__p2_text_0",
+        "chunk_type": "text",
+        "pg_num":     2,
+        "chunk_idx":  0,
+        "content":    "Some extracted text.",
+        "token_cnt":  4,
+        "metadata":   {"total_txt_chunks_on_pg": 3},
+        "embedding":  [0.1, 0.2],
+    }
+    header = {"file_name": "report.pdf", "file_path": "/data/report.pdf", "total_pgs": 5}
+    doc = build_index_document(chunk, header, "2026-08-14T00:00:00Z")
+
+    # Field names must match notebook exactly
+    assert doc["id"]            == "report__p2_text_0"
+    assert doc["doc_id"]        == "report"
+    assert doc["file_name"]     == "report.pdf"
+    assert doc["file_path"]     == "/data/report.pdf"
+    assert doc["file_type"]     == "pdf"
+    assert doc["total_pgs"]     == 5
+    assert doc["chunk_type"]    == "text"
+    assert doc["pg_num"]        == 2
+    assert doc["chunk_idx"]     == 0
+    assert doc["token_cnt"]     == 4
+    assert doc["content"]       == "Some extracted text."
+    assert doc["content_vector"] == [0.1, 0.2]
+    assert doc["last_updated"]  == "2026-08-14T00:00:00Z"
+    # Type-specific flattened field
+    assert doc["total_txt_chunks_on_pg"] == 3
+    # No nested metadata dict
+    assert "metadata" not in doc
+    assert "embedding" not in doc
+
+
+def test_build_index_document_table_chunk():
+    chunk = {
+        "chunk_id":   "report__p1_table_0",
+        "chunk_type": "table",
+        "pg_num":     1,
+        "chunk_idx":  0,
+        "content":    "| A | B |\n|---|---|\n| 1 | 2 |",
+        "token_cnt":  10,
+        "metadata":   {"num_rows": 2, "num_col": 2},
+        "embedding":  None,
+    }
+    header = {"file_name": "report.pdf", "file_path": "/data/report.pdf", "total_pgs": 5}
+    doc = build_index_document(chunk, header, "2026-08-14T00:00:00Z")
+
+    assert doc["num_rows"] == 2
+    assert doc["num_col"]  == 2
+    assert "total_txt_chunks_on_pg" not in doc
+    assert "img_id" not in doc
+
+
+def test_build_index_document_image_chunk():
+    chunk = {
+        "chunk_id":   "report__p3_image_0",
+        "chunk_type": "image",
+        "pg_num":     3,
+        "chunk_idx":  0,
+        "content":    "Caption: A chart\n\nDescription: Bar chart.",
+        "token_cnt":  8,
+        "metadata":   {"img_id": "page_3_img_0", "img_path": "https://blob/pg3_img0.png"},
+        "embedding":  [0.5],
+    }
+    header = {"file_name": "report.pdf", "file_path": "/data/report.pdf", "total_pgs": 5}
+    doc = build_index_document(chunk, header, "2026-08-14T00:00:00Z")
+
+    assert doc["img_id"]   == "page_3_img_0"
+    assert doc["img_path"] == "https://blob/pg3_img0.png"
+    assert "num_rows" not in doc
+    assert "total_txt_chunks_on_pg" not in doc
+
+
+def test_build_index_document_doc_id_from_chunk_id():
+    chunk = {
+        "chunk_id":   "19_093_J_FB__p1_text_0",
+        "chunk_type": "text",
+        "pg_num":     1,
+        "chunk_idx":  0,
+        "content":    "x",
+        "token_cnt":  1,
+        "metadata":   {"total_txt_chunks_on_pg": 1},
+        "embedding":  None,
+    }
+    header = {"file_name": "19_093_J_FB.pdf", "file_path": "", "total_pgs": 1}
+    doc = build_index_document(chunk, header, "2026-08-14T00:00:00Z")
+    assert doc["doc_id"] == "19_093_J_FB"
 
 
 def test_split_text_multiple_oversized_sentences():

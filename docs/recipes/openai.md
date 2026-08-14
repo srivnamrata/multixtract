@@ -25,6 +25,10 @@ pipeline = Pipeline(
 
 result = pipeline.process("report.pdf")
 print(f"{len(result.chunks)} chunks produced")
+
+# Also write individual per-chunk documents in one call
+result = pipeline.process("report.pdf", split_chunks=True)
+print(result.split_stats)  # SplitStats(created=N, skipped=0, failed=0, deduped=0)
 ```
 
 The pipeline extracts text, tables, and images → filters noise images → describes images with GPT-4o → chunks everything → embeds with `text-embedding-3-large` → writes JSON to `./output`.

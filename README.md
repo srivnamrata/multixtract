@@ -65,7 +65,8 @@ One call. Any document. Done.
 ```python
 from multixtract import Pipeline
 
-Pipeline().process("report.pdf")   # extract → filter → chunk — no API key needed
+Pipeline().process("report.pdf")                      # extract → filter → chunk
+Pipeline().process("report.pdf", split_chunks=True)   # + write individual chunk files
 ```
 
 Or stay close to the data:
@@ -126,7 +127,7 @@ PDF / DOCX / PPTX / XLSX / …
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Your document                            │
-│          PDF · DOCX · PPTX · XLSX · EPUB · HTML · RTF …        │
+│          PDF · DOCX · PPTX · XLSX · EPUB · HTML · RTF …         │
 └────────────────────────────┬────────────────────────────────────┘
                              │
                     ┌────────▼────────┐
@@ -135,24 +136,24 @@ PDF / DOCX / PPTX / XLSX / …
                              │
               ┌──────────────┼──────────────┐
               │              │              │
-         ┌────▼────┐   ┌─────▼─────┐  ┌────▼────┐
+         ┌────▼────┐   ┌─────▼─────┐  ┌─────▼───┐
          │  Text   │   │  Tables   │  │ Images  │
-         └────┬────┘   └─────┬─────┘  └────┬────┘
+         └────┬────┘   └─────┬─────┘  └─────┬───┘
               │              │              │
-              │              │    ┌─────────▼──────────┐
+              │              │    ┌─────────▼───────────┐
               │              │    │  ImageFilterPipeline│
               │              │    │  · dimension        │
               │              │    │  · solid-color      │
               │              │    │  · icon rejection   │
               │              │    │  · logo dedup (hash)│
-              │              │    └─────────┬──────────┘
+              │              │    └─────────┬───────────┘
               │              │              │
-              │              │    ┌─────────▼──────────┐
-              │              │    │    VisionModel      │
-              │              │    │  OpenAI · Azure     │
+              │              │    ┌─────────▼───────────┐
+              │              │    │     VisionModel     │
+              │              │    │   OpenAI · Azure    │
               │              │    │  Qwen · Llama · CPU │
               │              │    │  (or skip entirely) │
-              │              │    └─────────┬──────────┘
+              │              │    └─────────┬───────────┘
               │              │              │
               └──────────────┴──────────────┘
                              │
@@ -200,7 +201,6 @@ from llama_index.core import Document as LIDocument
 li_docs = [LIDocument(text=c["content"], metadata={"chunk_id": c["chunk_id"]}) for c in chunks]
 ```
 
-Works the same way with **Haystack**, **Semantic Kernel**, **Chroma**, **pgvector**, or any system that accepts text + metadata.
 
 ### Example projects
 
@@ -226,7 +226,9 @@ Each example is a self-contained `ingest.py` with a `--query` flag so you can ex
 * Tables serialized to **Markdown**; images embedded once and reused
 * **Parallel** vision calls (`vision_workers`), **batched** embeddings
 * Resume support — skip documents already in the store (`skip_if_exists`)
-* Document-level metadata on every chunk: `doc_id`, `file_path`, `file_name`, `file_type`, `total_pgs`, `last_updated`
+* **Two-stage chunking**: `_chunks.json` written automatically; pass `split_chunks=True` to also write flat individual chunk documents ready for Azure AI Search or any vector store
+* `build_index_document()` — transforms a raw chunk into a flat, AI-Search-ready document (renames `embedding` → `content_vector`, flattens `metadata`)
+* `safe_index_key()` — sanitizes any string to a valid Azure AI Search document key
 * Fully typed — `py.typed` marker, compatible with mypy and pyright
 
 ---
@@ -241,8 +243,9 @@ Each example is a self-contained `ingest.py` with a `--query` flag so you can ex
 - [x] Sliding-window chunking with sentence-boundary awareness
 - [x] Smart image filtering (dimension, solid-color, logo dedup)
 - [x] Document-level metadata on every chunk (`file_path`, `doc_id`, `last_updated`, …)
+- [x] Individual chunk splitting — `split_chunks=True` or `split_chunks_file()` writes per-chunk documents for AI Search ingestion
+- [x] `build_index_document()` — flat AI-Search-optimized output with `content_vector`, flattened `metadata`
 - [ ] Figure-caption association (link extracted images to their nearest caption)
-- [ ] S3 storage backend (built-in, no BYO required)
 - [ ] Table-of-contents aware chunking (respect heading hierarchy)
 - [ ] multisense — companion RAG pipeline library built on multixtract
 
@@ -287,7 +290,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. Bug reports and PRs are w
 
 ---
 
-## Projects Using Multixtract
+## Example Applications
 
 - Internal RAG systems on Azure OpenAI
 - Enterprise search over mixed document libraries

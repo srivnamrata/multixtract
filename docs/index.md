@@ -29,8 +29,21 @@ print(f"{len(document['pgs'])} pages, {len(chunks)} chunks, {len(images)} images
 
 No API keys, no cloud — just text, tables, and filtered image bytes.
 
+Full pipeline with individual chunk files for Azure AI Search:
+
+```python
+from multixtract import Pipeline
+from multixtract.providers.storage import LocalDiskStore
+
+pipeline = Pipeline(store=LocalDiskStore("./output"))
+result = pipeline.process("report.pdf", split_chunks=True)
+# writes _chunks.json + one flat JSON per chunk
+print(result.split_stats)
+```
+
 ## Navigation
 
 - [Usage Guide](usage.md) — all features with code examples
 - [API Reference](api.md) — full public API
+- [Data Model](data-model.md) — document schema, chunk schema, individual chunk documents, storage layout
 - [Changelog](changelog.md) — version history

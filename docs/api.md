@@ -71,16 +71,70 @@ chunks = chunk_document(
 Each chunk:
 ```python
 {
-    "chunk_id": str,        # deterministic, e.g. "doc__p1_e0_txt_0"
-    "chunk_type": str,      # "text" | "table" | "image"
-    "pg_num": int,
-    "chunk_idx": int,
-    "content": str,
-    "token_cnt": int,
-    "metadata": dict,
-    "embedding": list | None,
+    "chunk_id":   str,          # deterministic — e.g. "report__p1_text_0"
+    "chunk_type": str,          # "text" | "table" | "image"
+    "pg_num":     int,
+    "chunk_idx":  int,
+    "content":    str,
+    "token_cnt":  int,
+    "metadata":   dict,         # type-specific; see data-model.md
+    "embedding":  list | None,
 }
 ```
+
+---
+
+### `build_index_document`
+
+```python
+from multixtract import build_index_document
+
+index_doc = build_index_document(
+    chunk,      # one chunk dict from chunk_document() or _chunks.json
+    header,     # the _header dict from _chunks.json
+    timestamp,  # ISO-8601 UTC string, e.g. "2026-08-14T10:00:00Z"
+)
+```
+
+Transforms a raw chunk into a **flat** document ready for Azure AI Search (or any document store).  `metadata` is dissolved — type-specific fields are promoted to the top level.  `embedding` is renamed to `content_vector`.
+
+```python
+{
+    # identity
+    "id":            str,   # safe_index_key(chunk_id)
+    "doc_id":        str,   # stem of chunk_id before "__"
+    # provenance (from _header)
+    "file_name":     str,
+    "file_path":     str,
+    "file_type":     str,   # extension without dot, e.g. "pdf"
+    "total_pgs":     int,
+    # chunk fields
+    "chunk_type":    str,
+    "pg_num":        int,
+    "chunk_idx":     int,
+    "token_cnt":     int,
+    "content":       str,
+    "content_vector": list | None,
+    "last_updated":  str,
+    # type-specific flat fields (only present for matching chunk_type)
+    "total_txt_chunks_on_pg": int,    # text chunks only
+    "num_rows": int, "num_col": int,  # table chunks only
+    "img_id": str,  "img_path": str,  # image chunks only
+}
+```
+
+---
+
+### `safe_index_key`
+
+```python
+from multixtract import safe_index_key
+
+key: str = safe_index_key("report.pdf__p1_text_0")
+# "report_pdf__p1_text_0"
+```
+
+Replaces every character outside `[A-Za-z0-9_\-=]` with `_`.  Applied automatically to all `chunk_id` values and the `id` field in index documents.
 
 ---
 
@@ -126,8 +180,35 @@ pipeline = Pipeline(
 
 result = pipeline.process(
     doc_path,
-    skip_if_exists=True,   # skip if output JSON already exists in the store
+    skip_if_exists=True,    # skip if output JSON already exists in the store
+    split_chunks=False,     # when True, also write individual per-chunk documents
 )
+```
+
+When `split_chunks=True`, `result.split_stats` is populated.
+
+### `Pipeline.split_chunks_file`
+
+```python
+stats = pipeline.split_chunks_file(
+    chunks_data,            # dict — parsed _chunks.json content
+    timestamp=None,         # ISO-8601 str; defaults to current UTC time
+    skip_if_exists=True,    # skip chunks whose output path already exists
+    upload_workers=4,       # max concurrent store writes
+)
+```
+
+Reads a `_chunks.json` dict and writes one flat `build_index_document` JSON per chunk to `{individual_chunks_subdir}/{doc_name}/{id}.json`.  Returns a `SplitStats`.
+
+### `SplitStats`
+
+```python
+from multixtract import SplitStats
+
+stats.created   # int — chunk files written this call
+stats.skipped   # int — skipped because output already existed
+stats.failed    # int — store write errors
+stats.deduped   # int — image chunks whose echo content was deduplicated
 ```
 
 ### `ExtractionResult`
@@ -138,6 +219,7 @@ result.document       # dict — full document structure
 result.chunks         # list[dict]
 result.image_index    # list[dict] — flat list of all images with vision metadata
 result.filter_stats   # dict — {"kept": n, "dimension": n, "solid_color": n, ...}
+result.split_stats    # SplitStats | None — populated when split_chunks=True
 ```
 
 ### `PipelineConfig`
@@ -157,6 +239,7 @@ PipelineConfig(
     doc_json_subdir="jsons",
     image_json_subdir="image_jsons",
     chunks_subdir="chunks",
+    individual_chunks_subdir="individual_chunks",
 )
 ```
 

@@ -16,14 +16,24 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
-from .chunking import chunk_document
+from .chunking import build_index_document, chunk_document
 from .extraction import extract_document
 from .filters import ImageFilterPipeline
 from .interfaces import BlobStore, Embedder, PipelineConfig, VisionModel
 
 log = logging.getLogger("multixtract")
+
+
+@dataclass
+class SplitStats:
+    """Counters returned by :meth:`Pipeline.split_chunks_file`."""
+
+    created: int = 0
+    skipped: int = 0
+    failed: int = 0
+    deduped: int = 0
 
 
 @dataclass
@@ -35,6 +45,7 @@ class ExtractionResult:
     chunks: List[Dict[str, Any]] = field(default_factory=list)
     image_index: List[Dict[str, Any]] = field(default_factory=list)
     filter_stats: Dict[str, int] = field(default_factory=dict)
+    split_stats: Optional[SplitStats] = None
 
 
 class Pipeline:
@@ -60,7 +71,12 @@ class Pipeline:
 
     # ------------------------------------------------------------------
 
-    def process(self, doc_path: str, skip_if_exists: bool = True) -> ExtractionResult:
+    def process(
+        self,
+        doc_path: str,
+        skip_if_exists: bool = True,
+        split_chunks: bool = False,
+    ) -> ExtractionResult:
         """Run the full pipeline on a single document.
 
         Raises:
@@ -118,11 +134,6 @@ class Pipeline:
             image_embeddings=image_embeds,
             target_tokens=config.chunk_target_tokens,
             overlap_tokens=config.chunk_overlap_tokens,
-            doc_id=base_name,
-            file_name=_file_name,
-            file_path=doc_path,
-            file_type=_file_type,
-            last_updated=_last_updated,
         )
         self._embed_chunks(chunks)
 
@@ -136,6 +147,19 @@ class Pipeline:
 
         if self.store is not None:
             self._persist(result)
+            if split_chunks:
+                _meta = result.document.get("metadata", {})
+                chunks_data = {
+                    "_header": {
+                        "file_path": _meta.get("file_path", ""),
+                        "file_name": _meta.get("file_name", base_name),
+                        "total_pgs": len(result.document.get("pgs", [])),
+                    },
+                    "chunks": result.chunks,
+                }
+                result.split_stats = self.split_chunks_file(
+                    chunks_data, timestamp=_last_updated
+                )
         return result
 
     # ------------------------------------------------------------------
@@ -246,11 +270,13 @@ class Pipeline:
             f"{config.image_json_subdir}/{base_name}_image.json",
             {"imgs": result.image_index},
         )
+        _meta = result.document.get("metadata", {})
         self.store.put_json(
             f"{config.chunks_subdir}/{base_name}_chunks.json",
             {
                 "_header": {
-                    "file_name": base_name,
+                    "file_path": _meta.get("file_path", ""),
+                    "file_name": _meta.get("file_name", base_name),
                     "total_pgs": len(result.document.get("pgs", [])),
                 },
                 "chunks": result.chunks,
@@ -258,3 +284,96 @@ class Pipeline:
             compact=True,
         )
         self.store.put_json(f"{config.doc_json_subdir}/{base_name}.json", result.document)
+
+    # ------------------------------------------------------------------
+
+    def split_chunks_file(
+        self,
+        chunks_data: Dict[str, Any],
+        timestamp: Optional[str] = None,
+        skip_if_exists: bool = True,
+        upload_workers: int = 4,
+    ) -> SplitStats:
+        """Split a ``_chunks.json`` payload into individual per-chunk documents.
+
+        Mirrors the notebook's individual-chunk splitter step.  Each chunk
+        becomes a flat ``build_index_document`` dict stored at
+        ``{individual_chunks_subdir}/{doc_name}/{safe_chunk_id}.json``.
+
+        Args:
+            chunks_data:    The parsed ``_chunks.json`` dict (``_header`` + ``chunks``).
+            timestamp:      ISO-8601 UTC string for ``last_updated``.  Defaults to now.
+            skip_if_exists: Skip chunks whose output path already exists in the store.
+            upload_workers: Max concurrent store writes per call.
+
+        Returns:
+            :class:`SplitStats` with ``created``, ``skipped``, ``failed``,
+            ``deduped`` counts.
+        """
+        if self.store is None:
+            raise RuntimeError("split_chunks_file requires a store — none configured")
+
+        ts = timestamp or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        config     = self.config
+        header     = chunks_data.get("_header", {})
+        chunks     = chunks_data.get("chunks", [])
+        stats      = SplitStats()
+
+        if not chunks:
+            return stats
+
+        file_name = header.get("file_name", "")
+        doc_name  = file_name.rsplit(".", 1)[0] if "." in file_name else file_name
+
+        # Build (index_doc, store_path, original_content) triples up front so the
+        # loop body is a simple decision: skip, dedup-note, or enqueue for upload.
+        upload_tasks: List[Tuple[str, Dict[str, Any]]] = []
+
+        for chunk in chunks:
+            index_doc  = build_index_document(chunk, header, ts)
+            safe_id    = index_doc["id"]
+            store_path = f"{config.individual_chunks_subdir}/{doc_name}/{safe_id}.json"
+
+            if skip_if_exists and self.store.exists(store_path):
+                stats.skipped += 1
+                continue
+
+            if chunk.get("chunk_type") == "image" and len(index_doc["content"]) < len(
+                chunk.get("content", "")
+            ):
+                stats.deduped += 1
+
+            upload_tasks.append((store_path, index_doc))
+
+        if not upload_tasks:
+            return stats
+
+        if len(upload_tasks) == 1:
+            path, data = upload_tasks[0]
+            try:
+                self.store.put_json(path, data, compact=True)
+                stats.created += 1
+            except Exception as exc:
+                log.warning("split_chunks_file: write failed for %s: %s", path, exc)
+                stats.failed += 1
+            return stats
+
+        workers = min(upload_workers, len(upload_tasks))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {
+                pool.submit(self.store.put_json, path, data, True): path
+                for path, data in upload_tasks
+            }
+            for fut in as_completed(futures):
+                try:
+                    fut.result()
+                    stats.created += 1
+                except Exception as exc:
+                    stats.failed += 1
+                    if stats.failed <= 3:
+                        log.warning(
+                            "split_chunks_file: write failed for %s: %s",
+                            os.path.basename(futures[fut]), exc,
+                        )
+
+        return stats

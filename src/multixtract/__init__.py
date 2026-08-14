@@ -5,7 +5,13 @@ core functions (:func:`extract_document`, :func:`chunk_document`), the extractor
 registry, and the provider interfaces. Concrete providers live in
 :mod:`multixtract.providers`; format extractors in :mod:`multixtract.extractors`.
 """
-from .chunking import chunk_document, safe_index_key, split_text_into_chunks, table_to_markdown
+from .chunking import (
+    build_index_document,
+    chunk_document,
+    safe_index_key,
+    split_text_into_chunks,
+    table_to_markdown,
+)
 from .extraction import extract_document
 from .extractors import (
     ExtractorRegistry,
@@ -22,7 +28,7 @@ from .interfaces import (
     VisionModel,
     VisionResult,
 )
-from .pipeline import ExtractionResult, Pipeline
+from .pipeline import ExtractionResult, Pipeline, SplitStats
 
 try:
     from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
@@ -34,8 +40,10 @@ except _PackageNotFoundError:
 __all__ = [
     "Pipeline",
     "ExtractionResult",
+    "SplitStats",
     "PipelineConfig",
     "extract_document",
+    "build_index_document",
     "chunk_document",
     "split_text_into_chunks",
     "table_to_markdown",

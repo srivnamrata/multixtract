@@ -1,6 +1,6 @@
 from multixtract.chunking import (
     _clean_table_cell,
-    _flush_text_elements,
+    _splits_from_buffer,
     build_image_content,
     estimate_tokens,
     table_to_markdown,
@@ -28,12 +28,11 @@ def test_table_to_markdown_truncates_extra_row_cells():
     assert lines[2].count("|") == 3
 
 
-def test_flush_text_elements_filters_tiny_chunks():
+def test_splits_from_buffer_filters_tiny_chunks():
     # text buffer with content too small to meet CHUNK_MIN_TOKENS should be filtered
     tiny = ["a b"]  # estimate_tokens -> int(2*1.3) = 2 < CHUNK_MIN_TOKENS (3)
-    chunks = _flush_text_elements(tiny, base_name="doc", page_num=1, elem_start=0,
-                                  doc_meta={}, target_tokens=50, overlap_tokens=10)
-    assert chunks == []
+    splits = _splits_from_buffer(tiny, target_tokens=50, overlap_tokens=10)
+    assert splits == []
 
 
 def test_build_image_content_with_missing_fields_returns_empty():
