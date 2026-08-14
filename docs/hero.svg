@@ -1,0 +1,79 @@
+<svg width="760" height="220" viewBox="0 0 760 220" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI', system-ui, sans-serif">
+  <!-- Background -->
+  <rect width="760" height="220" rx="12" fill="#0f1117"/>
+
+  <!-- Input format pills -->
+  <g>
+    <rect x="24" y="28" width="68" height="32" rx="8" fill="#1e2433" stroke="#3b82f6" stroke-width="1.2"/>
+    <text x="58" y="49" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="600">PDF</text>
+
+    <rect x="100" y="28" width="72" height="32" rx="8" fill="#1e2433" stroke="#3b82f6" stroke-width="1.2"/>
+    <text x="136" y="49" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="600">DOCX</text>
+
+    <rect x="180" y="28" width="72" height="32" rx="8" fill="#1e2433" stroke="#3b82f6" stroke-width="1.2"/>
+    <text x="216" y="49" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="600">PPTX</text>
+
+    <rect x="260" y="28" width="72" height="32" rx="8" fill="#1e2433" stroke="#3b82f6" stroke-width="1.2"/>
+    <text x="296" y="49" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="600">XLSX</text>
+
+    <rect x="340" y="28" width="72" height="32" rx="8" fill="#1e2433" stroke="#3b82f6" stroke-width="1.2"/>
+    <text x="376" y="49" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="600">EPUB</text>
+
+    <rect x="420" y="28" width="72" height="32" rx="8" fill="#1e2433" stroke="#3b82f6" stroke-width="1.2"/>
+    <text x="456" y="49" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="600">HTML</text>
+
+    <rect x="500" y="28" width="64" height="32" rx="8" fill="#1e2433" stroke="#3b82f6" stroke-width="1.2"/>
+    <text x="532" y="49" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="600">RTF</text>
+
+    <rect x="572" y="28" width="64" height="32" rx="8" fill="#1e2433" stroke="#3b82f6" stroke-width="1.2"/>
+    <text x="604" y="49" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="600">EML</text>
+
+    <rect x="644" y="28" width="92" height="32" rx="8" fill="#1e2433" stroke="#4b5563" stroke-width="1.2" stroke-dasharray="4 3"/>
+    <text x="690" y="49" text-anchor="middle" fill="#6b7280" font-size="12" font-weight="500">+ more…</text>
+  </g>
+
+  <!-- Arrow down to multixtract -->
+  <line x1="380" y1="62" x2="380" y2="82" stroke="#3b82f6" stroke-width="2"/>
+  <polygon points="374,80 380,90 386,80" fill="#3b82f6"/>
+
+  <!-- multixtract core box -->
+  <rect x="220" y="92" width="320" height="44" rx="10" fill="#1d4ed8"/>
+  <text x="380" y="119" text-anchor="middle" fill="#ffffff" font-size="18" font-weight="700" letter-spacing="0.5">multixtract</text>
+
+  <!-- Arrow down to pipeline -->
+  <line x1="380" y1="138" x2="380" y2="152" stroke="#3b82f6" stroke-width="2"/>
+  <polygon points="374,150 380,160 386,150" fill="#3b82f6"/>
+
+  <!-- Pipeline steps -->
+  <g>
+    <rect x="60" y="162" width="130" height="34" rx="8" fill="#1e2433" stroke="#10b981" stroke-width="1.2"/>
+    <text x="125" y="184" text-anchor="middle" fill="#6ee7b7" font-size="12" font-weight="600">Extract Text · Tables · Images</text>
+
+    <rect x="208" y="162" width="100" height="34" rx="8" fill="#1e2433" stroke="#10b981" stroke-width="1.2"/>
+    <text x="258" y="184" text-anchor="middle" fill="#6ee7b7" font-size="12" font-weight="600">Vision / OCR</text>
+
+    <rect x="326" y="162" width="90" height="34" rx="8" fill="#1e2433" stroke="#10b981" stroke-width="1.2"/>
+    <text x="371" y="184" text-anchor="middle" fill="#6ee7b7" font-size="12" font-weight="600">Chunk</text>
+
+    <rect x="434" y="162" width="90" height="34" rx="8" fill="#1e2433" stroke="#10b981" stroke-width="1.2"/>
+    <text x="479" y="184" text-anchor="middle" fill="#6ee7b7" font-size="12" font-weight="600">Embed</text>
+
+    <rect x="542" y="162" width="100" height="34" rx="8" fill="#1e2433" stroke="#10b981" stroke-width="1.2"/>
+    <text x="592" y="184" text-anchor="middle" fill="#6ee7b7" font-size="12" font-weight="600">Store</text>
+  </g>
+
+  <!-- Connector arrows between pipeline steps -->
+  <line x1="190" y1="179" x2="206" y2="179" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="308" y1="179" x2="324" y2="179" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="416" y1="179" x2="432" y2="179" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="524" y1="179" x2="540" y2="179" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <defs>
+    <marker id="arr" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#10b981"/>
+    </marker>
+  </defs>
+
+  <!-- Output targets label -->
+  <text x="380" y="215" text-anchor="middle" fill="#6b7280" font-size="11">→ Azure AI Search · Chroma · pgvector · Pinecone · any vector store</text>
+</svg>
