@@ -683,6 +683,9 @@ def test_excel_workbook_closed_on_iter_rows_exception():
 
     mock_ws = MagicMock()
     mock_ws.iter_rows.side_effect = RuntimeError("simulated sheet read failure")
+    mock_ws.sheet_state = "visible"
+    mock_ws.column_dimensions = {}
+    mock_ws.hyperlinks = []
 
     mock_wb = MagicMock()
     mock_wb.sheetnames = ["Sheet1"]
@@ -721,6 +724,9 @@ def _run_excel_extract(sheet_media_map, converted_map, filter_returns):
 
     mock_ws = MagicMock()
     mock_ws.iter_rows.return_value = [("Col1", "Col2"), ("val1", "val2")]
+    mock_ws.sheet_state = "visible"
+    mock_ws.column_dimensions = {}
+    mock_ws.hyperlinks = []
     mock_wb = MagicMock()
     sheet_names = list(sheet_media_map.keys()) or ["Sheet1"]
     mock_wb.sheetnames = sheet_names

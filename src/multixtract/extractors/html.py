@@ -105,9 +105,10 @@ class HtmlExtractor:
                 text, tables = _section_text_and_tables(group, soup)
                 pages.append({
                     "pg_num": pg_num,
-                    "txt": text,
+                    "kind":   "section",
+                    "txt":    text,
                     "tables": tables,
-                    "imgs": [],
+                    "imgs":   [],
                 })
 
             document = {

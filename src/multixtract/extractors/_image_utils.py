@@ -83,18 +83,28 @@ def batch_convert_vectors_to_png(
             with open(input_path, "wb") as fh:
                 fh.write(raw)
             inputs.append((media_path, safe))
+        # Raw bytes are now on disk; release memory before spawning LibreOffice.
+        del raw
 
-        cmd = [soffice, "--headless", "--convert-to", "png", "--outdir", temp_dir] + [
-            os.path.join(temp_dir, safe) for _, safe in inputs
-        ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        if proc.returncode != 0:
-            log.warning(
-                "LibreOffice vector conversion failed (exit %d) for %d image(s) — "
-                "stderr: %s",
-                proc.returncode, len(vector_items), proc.stderr[:300],
-            )
-            return {}
+        # On Windows the CreateProcess command-line limit is ~32 767 chars.
+        # Batch all files in one call when safe; chunk into groups of 50 when
+        # the total path length risks exceeding the limit (conservatively ~200
+        # chars per path × 50 = 10 000 chars — well below the cap).
+        _BATCH = 50
+        input_batches = [inputs[i:i + _BATCH] for i in range(0, len(inputs), _BATCH)]
+        for batch in input_batches:
+            cmd = [soffice, "--headless", "--convert-to", "png", "--outdir", temp_dir] + [
+                os.path.join(temp_dir, safe) for _, safe in batch
+            ]
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            if proc.returncode != 0:
+                log.warning(
+                    "LibreOffice vector conversion failed (exit %d) for %d image(s) — "
+                    "stderr: %s",
+                    proc.returncode, len(batch), proc.stderr[:300],
+                )
+                # Partial failure: collect whatever PNG files were written before
+                # the error, then continue with any remaining batches.
 
         for media_path, safe in inputs:
             png = os.path.join(temp_dir, f"{os.path.splitext(safe)[0]}.png")
@@ -142,6 +152,7 @@ def decode_wdp_to_png(wdp_items: List[Tuple[str, bytes]]) -> Dict[str, bytes]:
         try:
             arr = imagecodecs.jpegxr_decode(raw)
             img = Image.fromarray(arr)
+            del arr  # free numpy array before PIL decode holds the same pixel data
             try:
                 if img.mode not in ("RGB", "RGBA"):
                     orig = img

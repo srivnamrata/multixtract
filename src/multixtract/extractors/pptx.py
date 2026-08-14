@@ -36,8 +36,10 @@ from ._image_utils import (
 
 log = logging.getLogger("multixtract.extractors.pptx")
 
-_A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
-_PKG_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+_A_NS          = "http://schemas.openxmlformats.org/drawingml/2006/main"
+_PKG_REL_NS    = "http://schemas.openxmlformats.org/package/2006/relationships"
+_PPTX_MAIN_NS  = "http://schemas.openxmlformats.org/presentationml/2006/main"
+_OFFICE_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 
 
 def _iter_all_shapes(shapes, mso):
@@ -111,12 +113,65 @@ def _extract_slide_content(slide, mso) -> Tuple[str, str, List[List[List[str]]],
     return "\n".join(texts), title, tables, hyperlinks
 
 
+def _slide_part_names(zf: zipfile.ZipFile) -> List[str]:
+    """Return slide part paths in presentation order via ppt/_rels/presentation.xml.rels.
+
+    Using the relationship file rather than guessing ``slide{N}.xml`` handles
+    LibreOffice-converted files and any PPTX where slide numbering is non-sequential
+    (e.g. slides starting at slide2.xml, or with gaps after deletions).
+    Falls back to sorted namelist scan when the relationship file is missing.
+    """
+    namelist = set(zf.namelist())
+    rels_path = "ppt/_rels/presentation.xml.rels"
+    ordered: List[str] = []
+    if rels_path in namelist:
+        try:
+            root = ET.fromstring(zf.read(rels_path).decode("utf-8"))
+            for rel in root.findall(f"{{{_PKG_REL_NS}}}Relationship"):
+                rel_type = rel.get("Type", "")
+                if rel_type.endswith("/slide"):
+                    target = rel.get("Target", "")
+                    # Target is relative to ppt/: "slides/slide2.xml"
+                    part = f"ppt/{target.lstrip('/')}"
+                    if part in namelist:
+                        ordered.append(part)
+            if ordered:
+                return ordered
+        except Exception as exc:
+            log.debug("presentation.xml.rels parse failed: %s", exc)
+
+    # Fallback: derive slide part names from either the .xml entries or their
+    # .rels files (rels live under _rels/; the test fixture may only have those).
+    import re as _re
+    _xml_re  = _re.compile(r"ppt/slides/(slide(\d+)\.xml)$")
+    _rels_re = _re.compile(r"ppt/slides/_rels/(slide(\d+)\.xml)\.rels$")
+    seen_stems: Dict[int, str] = {}
+    for name in namelist:
+        for pattern in (_xml_re, _rels_re):
+            m = pattern.match(name)
+            if m:
+                stem, num = m.group(1), int(m.group(2))
+                if num not in seen_stems:
+                    seen_stems[num] = f"ppt/slides/{stem}"
+                break
+    return [seen_stems[k] for k in sorted(seen_stems)]
+
+
 def _build_slide_media_map(zf: zipfile.ZipFile, n_slides: int) -> Dict[int, List[str]]:
-    """Map slide number -> [media paths] from each slide's relationships."""
+    """Map slide number (1-based, presentation order) -> [media paths].
+
+    Slide numbers here correspond to python-pptx's ``prs.slides[idx]`` index
+    (1-based), not the raw ``slideN`` filename suffix.
+    """
     slide_media: Dict[int, List[str]] = defaultdict(list)
     namelist = set(zf.namelist())
-    for slide_num in range(1, n_slides + 1):
-        rels_path = f"ppt/slides/_rels/slide{slide_num}.xml.rels"
+    slide_parts = _slide_part_names(zf)
+
+    for slide_num, slide_part in enumerate(slide_parts, start=1):
+        if slide_num > n_slides:
+            break
+        base = os.path.basename(slide_part)  # e.g. "slide2.xml"
+        rels_path = f"ppt/slides/_rels/{base}.rels"
         if rels_path not in namelist:
             continue
         try:
@@ -124,9 +179,11 @@ def _build_slide_media_map(zf: zipfile.ZipFile, n_slides: int) -> Dict[int, List
             for rel in root.findall(f"{{{_PKG_REL_NS}}}Relationship"):
                 target = rel.get("Target", "")
                 if "../media/" in target:
-                    slide_media[slide_num].append(f"ppt/media/{target.replace('../media/', '')}")
+                    slide_media[slide_num].append(
+                        f"ppt/media/{target.replace('../media/', '')}"
+                    )
         except Exception as exc:
-            log.debug("rels parse failed for slide %d: %s", slide_num, exc)
+            log.debug("rels parse failed for %s: %s", slide_part, exc)
     return slide_media
 
 
@@ -217,7 +274,9 @@ class PptxExtractor:
                             vector_items.append((media_path, raw))
                             seen_media.add(media_path)
                 converted = batch_convert_vectors_to_png(vector_items, self.vector_timeout)
+                vector_items.clear()
                 converted.update(decode_wdp_to_png(wdp_items))
+                wdp_items.clear()
 
                 # Track media paths already sent to prepare_image (deduplicates
                 # converted vectors that appear on multiple slides — Bug 8).
@@ -250,7 +309,7 @@ class PptxExtractor:
                             continue
 
                         if media_path in converted:
-                            image_bytes, ext_out = converted[media_path], "png"
+                            image_bytes, ext_out = converted.pop(media_path), "png"
                         elif ext in VECTOR_EXTS or ext in WDP_EXTS or ext == ".bin":
                             continue  # conversion failed or non-image .bin
                         else:

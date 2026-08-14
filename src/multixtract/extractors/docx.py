@@ -23,6 +23,25 @@ import os
 import zipfile
 from typing import Any, Dict, List, Optional, Tuple
 
+# python-docx uses lxml internally. By default lxml limits text nodes to ~10 MB
+# (xmlSAX2Characters: huge text node). Large engineering DOCX files routinely
+# exceed this. Patch the parser with huge_tree=True at import time so the limit
+# is lifted for all subsequent python-docx operations in this process.
+# The patch is applied once and is safe to import multiple times (try/except
+# guards against python-docx versions that reorganise internal globals).
+try:
+    import docx.oxml as _docx_oxml
+    from lxml import etree as _lxml_etree
+
+    _huge_parser = _lxml_etree.XMLParser(remove_blank_text=True, huge_tree=True)
+    _element_class_lookup = _docx_oxml.parse_xml.__globals__.get("element_class_lookup")
+    if _element_class_lookup is not None:
+        _huge_parser.set_element_class_lookup(_element_class_lookup)
+    _docx_oxml.parse_xml.__globals__["oxml_parser"] = _huge_parser
+    log_msg = "huge_tree=True applied (supports DOCX files >10 MB)"
+except Exception:
+    log_msg = "huge_tree patch skipped (lxml or docx.oxml not available yet)"
+
 from ..filters import ImageFilterPipeline
 from ._image_utils import (
     IMAGE_EXTS,
@@ -34,6 +53,7 @@ from ._image_utils import (
 )
 
 log = logging.getLogger("multixtract.extractors.docx")
+log.debug("%s", log_msg)
 
 # ── OOXML namespaces ──
 _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -294,6 +314,9 @@ class DocxExtractor:
                 media_files = [n for n in zf.namelist() if n.startswith("word/media/")]
 
                 # Pre-convert vector (EMF/WMF) and WDP images.
+                # Build the item lists, then immediately discard the raw bytes
+                # once batch_convert_vectors_to_png / decode_wdp_to_png have
+                # written them to the temp dir / decoded them.
                 vector_items, wdp_items = [], []
                 for media_path in media_files:
                     ext = os.path.splitext(media_path)[1].lower()
@@ -305,7 +328,9 @@ class DocxExtractor:
                     except KeyError:
                         pass
                 converted = batch_convert_vectors_to_png(vector_items, self.vector_timeout)
+                vector_items.clear()
                 converted.update(decode_wdp_to_png(wdp_items))
+                wdp_items.clear()
 
                 page_img_idx: Dict[int, int] = {}
                 for media_path in media_files:
@@ -314,7 +339,7 @@ class DocxExtractor:
                         continue
 
                     if media_path in converted:
-                        image_bytes, ext_out = converted[media_path], "png"
+                        image_bytes, ext_out = converted.pop(media_path), "png"
                     elif ext in VECTOR_EXTS or ext in WDP_EXTS:
                         continue  # conversion failed; skip
                     else:

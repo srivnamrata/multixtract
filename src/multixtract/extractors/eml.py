@@ -133,7 +133,7 @@ class EmlExtractor:
                     "attachments": attachments,
                 },
                 "pgs": [
-                    {"pg_num": 1, "txt": txt, "tables": [], "imgs": []}
+                    {"pg_num": 1, "kind": "page", "txt": txt, "tables": [], "imgs": []}
                 ],
             }
 
@@ -141,6 +141,7 @@ class EmlExtractor:
             # Extract image attachments and inline images (Content-ID parts).
             prepared_images: List[Dict[str, Any]] = []
             if image_filter is not None:
+                image_filter.reset()
                 try:
                     from PIL import Image as PILImage
                 except ImportError:

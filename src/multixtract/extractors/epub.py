@@ -60,6 +60,9 @@ class EpubExtractor:
         except ImportError:
             PILImage = None  # type: ignore[assignment]
 
+        if image_filter is not None:
+            image_filter.reset()
+
         try:
             book = epub.read_epub(path, options={"ignore_ncx": True})
 
@@ -86,13 +89,14 @@ class EpubExtractor:
                 pg_num += 1
                 pages.append({
                     "pg_num": pg_num,
-                    "txt": txt,
+                    "kind":   "section",
+                    "txt":    txt,
                     "tables": tables,
-                    "imgs": [],
+                    "imgs":   [],
                 })
 
             if not pages:
-                pages.append({"pg_num": 1, "txt": "", "tables": [], "imgs": []})
+                pages.append({"pg_num": 1, "kind": "section", "txt": "", "tables": [], "imgs": []})
 
             document = {
                 "_base_name": base_name,

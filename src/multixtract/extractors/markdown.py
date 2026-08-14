@@ -16,8 +16,9 @@ _H1_RE = re.compile(r"^# .+", re.MULTILINE)
 _H2_RE = re.compile(r"^## .+", re.MULTILINE)
 # A pipe-table row: starts and ends with |, contains at least one |
 _TABLE_ROW_RE = re.compile(r"^\|.+\|$")
-# Separator row: only |, -, :, and spaces
-_TABLE_SEP_RE = re.compile(r"^\|[\s\-:|]+\|$")
+# Separator row: each cell must be :?-+:? (GFM alignment row).
+# Matches e.g. "| --- | :---: | ---: |" but NOT data cells like "| -- note |".
+_TABLE_SEP_RE = re.compile(r"^\|(\s*:?-+:?\s*\|)+$")
 
 
 def _parse_tables(text: str) -> List[List[List[str]]]:
@@ -83,13 +84,14 @@ class MarkdownExtractor:
             for pg_num, section in enumerate(sections, start=1):
                 pages.append({
                     "pg_num": pg_num,
-                    "txt": section,
+                    "kind":   "section",
+                    "txt":    section,
                     "tables": _parse_tables(section),
-                    "imgs": [],
+                    "imgs":   [],
                 })
 
             if not pages:
-                pages.append({"pg_num": 1, "txt": "", "tables": [], "imgs": []})
+                pages.append({"pg_num": 1, "kind": "section", "txt": "", "tables": [], "imgs": []})
 
             document = {
                 "_base_name": base_name,

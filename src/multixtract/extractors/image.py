@@ -108,7 +108,9 @@ class ImageExtractor:
                 width, height = img.size
 
                 buf = io.BytesIO()
-                frame = img.convert("RGB")
+                # Preserve alpha when present; otherwise normalise to RGB.
+                target_mode = "RGBA" if img.mode in ("RGBA", "LA", "PA") else "RGB"
+                frame = img.convert(target_mode)
                 try:
                     frame.save(buf, format="PNG")
                 finally:

@@ -66,10 +66,10 @@ def convert_with_libreoffice(
     # LibreOffice normalizes the output filename (spaces → underscores, special
     # chars dropped/replaced), so we can't predict the exact stem. Scan out_dir
     # for any file with the right extension instead of checking a fixed path.
-    matches = [
+    matches = sorted(
         f for f in os.listdir(out_dir)
         if f.lower().endswith(f".{fmt}")
-    ]
+    )
     if not matches:
         raise RuntimeError(
             f"LibreOffice exited 0 but produced no .{fmt} file in {out_dir!r} "

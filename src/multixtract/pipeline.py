@@ -169,23 +169,24 @@ class Pipeline:
             return {}
         results: Dict[str, Any] = {}
         workers = min(self.config.vision_workers, len(prepared))
+        # Map future -> (image_id, img dict) so bytes can be freed per-image as
+        # each future completes rather than holding all bytes until all are done.
         with ThreadPoolExecutor(max_workers=workers) as pool:
             futures = {
                 pool.submit(
                     self.vision.analyze,
                     img["image_bytes"], img["ext"], img["width"], img["height"],
-                ): img["image_id"]
+                ): img
                 for img in prepared
             }
             for fut in as_completed(futures):
-                image_id = futures[fut]
+                img = futures[fut]
+                image_id = img["image_id"]
+                img.pop("image_bytes", None)  # free bytes as soon as the call returns
                 try:
                     results[image_id] = fut.result()
                 except Exception as exc:  # provider should not raise, but be safe
                     log.warning("vision failed for %s: %s", image_id, exc)
-        # Free image bytes once vision is done.
-        for img in prepared:
-            img.pop("image_bytes", None)
         return results
 
     def _embed_images(self, prepared, vision_by_id) -> Dict[str, List[float]]:

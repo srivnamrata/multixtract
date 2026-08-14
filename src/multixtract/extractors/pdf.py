@@ -56,15 +56,19 @@ def _normalize_pdf_metadata(
     slash) to canonical names, parses PDF date strings, and appends computed
     aggregates so the shape matches the DOCX metadata dict.
     """
+    # Build a single case-insensitive lookup map; earlier keys win on collision.
+    _lower: Dict[str, Any] = {}
+    for rk, rv in raw.items():
+        _lower.setdefault(rk.lower(), rv)
+
     def _get(*keys: str) -> Any:
         for k in keys:
             for candidate in (k, k.lstrip("/"), f"/{k}"):
                 if candidate in raw:
                     return raw[candidate]
-                if candidate.lower() in {rk.lower(): rv for rk, rv in raw.items()}:
-                    for rk, rv in raw.items():
-                        if rk.lower() == candidate.lower():
-                            return rv
+                val = _lower.get(candidate.lower())
+                if val is not None:
+                    return val
         return None
 
     return {
@@ -292,6 +296,8 @@ class PdfExtractor:
                 converted.update(decode_wdp_to_png(wdp_items))
 
                 # Pass 4: run prepare_image for every image that survived.
+                # Pop from raster_cache / converted as we go so bytes are freed
+                # immediately rather than held until the whole document is done.
                 for xref, page_idx, img_idx in xref_order:
                     maybe_path = xref_fake_path.get(xref)
                     if maybe_path is None:
@@ -299,10 +305,10 @@ class PdfExtractor:
                     fake_path = maybe_path
 
                     if fake_path in converted:
-                        image_bytes = converted[fake_path]
+                        image_bytes = converted.pop(fake_path)
                         ext_out = "png"
                     elif xref in raster_cache:
-                        base_image = raster_cache[xref]
+                        base_image = raster_cache.pop(xref)
                         image_bytes = base_image["image"]
                         ext_out = base_image["ext"]
                         if ext_out == "png" and not image_bytes[:4].startswith(b"\x89PNG"):

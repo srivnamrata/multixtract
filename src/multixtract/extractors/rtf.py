@@ -43,7 +43,7 @@ class RtfExtractor:
                     "char_count": len(txt),
                 },
                 "pgs": [
-                    {"pg_num": 1, "txt": txt, "tables": [], "imgs": []}
+                    {"pg_num": 1, "kind": "page", "txt": txt, "tables": [], "imgs": []}
                 ],
             }
             return document, []

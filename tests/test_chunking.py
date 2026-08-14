@@ -237,3 +237,124 @@ def test_split_text_multiple_oversized_sentences():
     assert len(chunks) == 2, f"Two oversized sentences must produce 2 chunks, got {len(chunks)}"
     assert any("alpha" in c for c in chunks)
     assert any("beta" in c for c in chunks)
+
+
+# ---------------------------------------------------------------------------
+# Hyperlinks, slide title, and image slide-context tests
+# ---------------------------------------------------------------------------
+
+def _make_pptx_page(
+    pg_num=1, txt="Body text.", title="Results", hyperlinks=None, tables=None, imgs=None,
+):
+    return {
+        "pg_num":     pg_num,
+        "kind":       "slide",
+        "title":      title,
+        "txt":        txt,
+        "tables":     tables or [],
+        "hyperlinks": hyperlinks or [],
+        "imgs":       imgs or [],
+    }
+
+
+def test_hyperlinks_appended_to_text_chunks():
+    """Hyperlinks captured during extraction must appear in text chunk content."""
+    doc = {
+        "pgs": [_make_pptx_page(
+            txt="Slide content here.",
+            hyperlinks=["https://example.com/spec", "https://example.com/data"],
+        )]
+    }
+    chunks = chunk_document(doc, base_name="deck")
+    text_chunks = [c for c in chunks if c["chunk_type"] == "text"]
+    assert text_chunks, "Expected at least one text chunk"
+    combined = " ".join(c["content"] for c in text_chunks)
+    assert "https://example.com/spec" in combined
+    assert "https://example.com/data" in combined
+    assert "Links:" in combined
+
+
+def test_hyperlinks_only_page_produces_text_chunk():
+    """Pages with hyperlinks but no body text produce a text chunk from the links line."""
+    doc = {
+        "pgs": [_make_pptx_page(
+            txt="",
+            hyperlinks=["https://example.com/spec", "https://example.com/data"],
+        )]
+    }
+    chunks = chunk_document(doc, base_name="deck")
+    text_chunks = [c for c in chunks if c["chunk_type"] == "text"]
+    assert text_chunks
+    assert "https://example.com/spec" in text_chunks[0]["content"]
+    assert "https://example.com/data" in text_chunks[0]["content"]
+
+
+def test_slide_title_prepended_to_table_chunks():
+    """PPTX table chunks must carry their slide title as a leading line."""
+    doc = {
+        "pgs": [_make_pptx_page(
+            title="Test Results",
+            tables=[[["Parameter", "Value"], ["Torque", "450 Nm"]]],
+        )]
+    }
+    chunks = chunk_document(doc, base_name="deck")
+    table_chunks = [c for c in chunks if c["chunk_type"] == "table"]
+    assert table_chunks
+    assert table_chunks[0]["content"].startswith("Slide: Test Results")
+
+
+def test_no_slide_prefix_on_docx_table_chunks():
+    """DOCX pages have no title key — table chunks must not get a Slide: prefix."""
+    doc = {
+        "pgs": [{
+            "pg_num":  1,
+            "txt":     "Some paragraph.",
+            "tables":  [[["Col A", "Col B"], ["1", "2"]]],
+            "imgs":    [],
+        }]
+    }
+    chunks = chunk_document(doc, base_name="doc")
+    table_chunks = [c for c in chunks if c["chunk_type"] == "table"]
+    assert table_chunks
+    assert not table_chunks[0]["content"].startswith("Slide:")
+
+
+def test_slide_title_in_image_chunk_content():
+    """PPTX image chunks must include the slide title in their content."""
+    doc = {
+        "pgs": [_make_pptx_page(
+            title="Force-Displacement Results",
+            imgs=[{
+                "img_id":      "page_1_img_0",
+                "img_idx":     0,
+                "caption":     "Force chart",
+                "ocr_text":    "F [N]",
+                "description": "Line chart of force vs displacement.",
+                "img_path":    "pg1_img0.png",
+            }],
+        )]
+    }
+    chunks = chunk_document(doc, base_name="deck")
+    img_chunks = [c for c in chunks if c["chunk_type"] == "image"]
+    assert img_chunks
+    assert "Slide: Force-Displacement Results" in img_chunks[0]["content"]
+
+
+def test_build_image_content_with_page_context():
+    """build_image_content must emit the page_context prefix verbatim."""
+    content = build_image_content(
+        {"caption": "A chart", "ocr_text": "x;y", "description": "Line chart."},
+        page_context="Slide: Results Overview",
+    )
+    assert content.startswith("Slide: Results Overview")
+    assert "Caption: A chart" in content
+
+
+def test_build_image_content_no_page_context_unchanged():
+    """build_image_content without page_context must not add any prefix."""
+    content = build_image_content(
+        {"caption": "A chart", "description": "desc"},
+    )
+    assert not content.startswith("Slide:")
+    assert not content.startswith("Sheet:")
+    assert "Caption: A chart" in content

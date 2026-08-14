@@ -178,9 +178,16 @@ def table_to_markdown(table: List[List[Optional[str]]]) -> str:
     return "\n".join(lines)
 
 
-def build_image_content(img_meta: Dict[str, Any]) -> str:
-    """Combine caption, OCR text, and description into a searchable string."""
+def build_image_content(img_meta: Dict[str, Any], page_context: str = "") -> str:
+    """Combine caption, OCR text, and description into a searchable string.
+
+    ``page_context`` is a pre-formatted prefix string (e.g. ``"Slide: Title"``
+    or ``"Sheet: Name"``) emitted as the first line when provided, so every
+    image chunk carries its source context for RAG retrieval.
+    """
     parts = []
+    if page_context:
+        parts.append(page_context)
     if img_meta.get("caption"):
         parts.append(f"Caption: {img_meta['caption']}")
     ocr = img_meta.get("ocr_text")
@@ -282,6 +289,22 @@ def _splits_from_buffer(
     return result
 
 
+def _page_context_prefix(page_kind: str, page_title: str) -> str:
+    """Return the context prefix string for a page, or '' when not applicable.
+
+    PPTX slides  → ``"Slide: <title>"``
+    XLSX sheets  → ``"Sheet: <title>"``
+    All others   → ``""`` (DOCX pages, PDF pages)
+    """
+    if not page_title:
+        return ""
+    if page_kind == "slide":
+        return f"Slide: {page_title}"
+    if page_kind == "sheet":
+        return f"Sheet: {page_title}"
+    return ""
+
+
 def chunk_document(
     document: Dict[str, Any],
     base_name: str,
@@ -312,7 +335,11 @@ def chunk_document(
     image_embeddings = image_embeddings or {}
 
     for page in document.get("pgs", []):
-        page_num = page["pg_num"]
+        page_num   = page["pg_num"]
+        page_kind  = page.get("kind") or ""
+        page_title = page.get("title") or ""
+        # One context prefix shared by text, table, and image chunks for this page.
+        context    = _page_context_prefix(page_kind, page_title)
 
         # ── Elements path (PDF: ordered text + table blocks) ─────────────────
         if "elements" in page:
@@ -388,11 +415,22 @@ def chunk_document(
 
         # ── Legacy path (docx / pptx / xlsx: txt + tables) ───────────────────
         else:
+            # Append hyperlinks to the text buffer so URLs are searchable.
+            # Join with " | " to stay on one line and not fragment sentence splitter.
+            page_txt: str = page.get("txt") or ""
+            hyperlinks: List[str] = page.get("hyperlinks") or []
+            if hyperlinks:
+                link_line = "Links: " + " | ".join(hyperlinks)
+                page_txt = f"{page_txt}\n\n{link_line}" if page_txt else link_line
+
             text_splits = _splits_from_buffer(
-                [page.get("txt") or ""], target_tokens, overlap_tokens,
+                [page_txt], target_tokens, overlap_tokens,
             )
             total_txt_on_pg = len(text_splits)
-            for split_index, (content, token_cnt) in enumerate(text_splits):
+            for split_index, (split_content, token_cnt) in enumerate(text_splits):
+                content = f"{context}\n\n{split_content}" if context else split_content
+                if context:
+                    token_cnt = estimate_tokens(content)
                 chunks.append({
                     "chunk_id":   safe_index_key(f"{base_name}__p{page_num}_text_{split_index}"),
                     "chunk_type": "text",
@@ -405,9 +443,10 @@ def chunk_document(
                 })
 
             for table_idx, table in enumerate(page.get("tables") or []):
-                content = table_to_markdown(table)
-                if not content:
+                md = table_to_markdown(table)
+                if not md:
                     continue
+                content = f"{context}\n\n{md}" if context else md
                 chunks.append({
                     "chunk_id":   safe_index_key(f"{base_name}__p{page_num}_table_{table_idx}"),
                     "chunk_type": "table",
@@ -423,9 +462,12 @@ def chunk_document(
                 })
 
         # ── Image chunks (both paths) ─────────────────────────────────────────
+        # `context` is computed once per page above and reused here for images.
         for img_meta in page.get("imgs") or []:
-            content = _deduplicate_image_content(build_image_content(img_meta))
-            if not content:
+            img_content = _deduplicate_image_content(
+                build_image_content(img_meta, page_context=context)
+            )
+            if not img_content:
                 continue
             img_index = img_meta.get("img_idx", 0)
             image_id  = img_meta.get("img_id", "")
@@ -434,8 +476,8 @@ def chunk_document(
                 "chunk_type": "image",
                 "pg_num":     page_num,
                 "chunk_idx":  img_index,
-                "content":    content,
-                "token_cnt":  estimate_tokens(content),
+                "content":    img_content,
+                "token_cnt":  estimate_tokens(img_content),
                 "metadata":   {"img_id": image_id, "img_path": img_meta.get("img_path", "")},
                 "embedding":  image_embeddings.get(image_id),
             })

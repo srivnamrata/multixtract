@@ -41,7 +41,7 @@ class TextExtractor:
                     "char_count": len(text),
                 },
                 "pgs": [
-                    {"pg_num": 1, "txt": text, "tables": [], "imgs": []}
+                    {"pg_num": 1, "kind": "page", "txt": text, "tables": [], "imgs": []}
                 ],
             }
             return document, []

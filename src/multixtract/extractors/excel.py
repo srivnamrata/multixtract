@@ -42,10 +42,141 @@ _PKG_REL_NS    = "http://schemas.openxmlformats.org/package/2006/relationships"
 _SS_MAIN_NS    = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 _OFFICE_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 
-_MAX_HEADER_COLS = 20  # truncate the column preview in the sheet header
+_MAX_HEADER_COLS    = 20      # truncate the column preview in the sheet header
+_MAX_ROWS_PER_SHEET = 10_000  # cap to keep memory bounded on giant sheets
+_MAX_COLS_READ      = 500     # cap columns read per row
 
 
-def _row_to_kv(headers: List[str], row) -> str:
+def _trim_trailing_empty_cols(rows: List[Tuple]) -> List[Tuple]:
+    """Drop trailing all-None columns so sparse sheets don't report 16 K columns.
+
+    Excel stores the sheet's 'dimension' as the bounding rectangle of ever-touched
+    cells; sheets that once had data in column XFD (16 384) report 16 384 columns
+    even when 16 350 of them are now empty.  We find the rightmost column that has
+    at least one non-None, non-blank value and truncate all rows there.
+    Returns an empty list when every cell in every row is blank.
+    """
+    if not rows:
+        return rows
+    max_col = 0
+    for row in rows:
+        for j in range(len(row) - 1, -1, -1):
+            if row[j] is not None and str(row[j]).strip() != "":
+                max_col = max(max_col, j + 1)
+                break
+    if max_col == 0:
+        return []
+    return [row[:max_col] for row in rows]
+
+
+def _hidden_col_indices(ws) -> Set[int]:
+    """Return the 0-based column indices that are hidden in *ws*.
+
+    Requires the workbook to be opened with ``read_only=False``; returns an
+    empty set when ``column_dimensions`` is not available.
+    """
+    try:
+        col_dims = ws.column_dimensions
+    except AttributeError:
+        return set()
+
+    try:
+        from openpyxl.utils import column_index_from_string
+    except ImportError:
+        return set()
+
+    hidden: Set[int] = set()
+    for col_letter, dim in col_dims.items():
+        if getattr(dim, "hidden", False):
+            try:
+                hidden.add(column_index_from_string(col_letter) - 1)  # 0-based
+            except Exception:
+                pass
+    return hidden
+
+
+def _extract_hyperlinks(ws) -> List[str]:
+    """Collect hyperlink URLs from a worksheet.
+
+    Uses the ``ws.hyperlinks`` collection (openpyxl ≥ 2.6) as the primary
+    source.  Falls back to per-cell ``.hyperlink`` attribute iteration only
+    when the collection is empty or unavailable, and caps that scan at
+    ``_MAX_ROWS_PER_SHEET`` rows to bound cost.  Returns a deduplicated list.
+    """
+    seen: Set[str] = set()
+    urls: List[str] = []
+
+    def _add(url: str) -> None:
+        url = (url or "").strip()
+        if url and url not in seen:
+            seen.add(url)
+            urls.append(url)
+
+    # Probe accessibility first so a mid-iteration error (rare) doesn't trigger
+    # the expensive fallback unnecessarily.
+    try:
+        hyperlinks_col = ws.hyperlinks  # raises AttributeError on old openpyxl
+    except Exception:
+        hyperlinks_col = None
+
+    if hyperlinks_col is not None:
+        try:
+            for hl in hyperlinks_col:
+                _add(getattr(hl, "target", "") or "")
+        except Exception:
+            pass
+    else:
+        # Per-cell fallback for very old openpyxl or non-standard worksheet types.
+        try:
+            for i, row in enumerate(ws.iter_rows()):
+                if i >= _MAX_ROWS_PER_SHEET:
+                    break
+                for cell in row:
+                    hl = getattr(cell, "hyperlink", None)
+                    if hl is not None:
+                        _add(getattr(hl, "target", "") or str(hl))
+        except Exception:
+            pass
+
+    return urls
+
+
+def _named_ranges_text(wb) -> str:
+    """Build a plain-text block of all workbook-level named ranges.
+
+    Named ranges (e.g. ``INPUT_RANGE``, ``OUTPUT_TABLE``) are defined in
+    ``wb.defined_names`` and are invisible to normal cell iteration.  Including
+    them makes the names and their cell references searchable in the index.
+    Returns an empty string when none are defined or the attribute is absent.
+    """
+    try:
+        defined = wb.defined_names
+    except AttributeError:
+        return ""
+
+    lines: List[str] = []
+    try:
+        items = list(defined.items())
+    except Exception:
+        return ""
+
+    for name, defn in items:
+        try:
+            # attr_text is the cell reference string (e.g. "Sheet1!$A$1:$B$10").
+            # Fall back to the value attribute, then skip if neither is a plain string.
+            dest = getattr(defn, "attr_text", None) or getattr(defn, "value", None)
+            if not dest or not isinstance(dest, str):
+                continue
+            lines.append(f"{name}: {dest}")
+        except Exception:
+            pass
+
+    if not lines:
+        return ""
+    return "Named Ranges:\n" + "\n".join(lines)
+
+
+def _row_to_kv(headers: List[str], row: Tuple) -> str:
     """Render one row as ``col: val | col: val`` for non-empty cells only."""
     pairs = []
     for h, v in zip(headers, row):
@@ -62,15 +193,19 @@ def _is_metadata_row(row) -> bool:
     that at least one non-empty cell ends with ':' — a label cell pattern.
     Real column-header rows like ('Part', 'Quantity', 'Price') never end with ':'.
     """
-    non_empty = [str(c).strip() for c in row if c is not None and str(c).strip() != ""]
+    non_empty = [s for c in row if c is not None and (s := str(c).strip()) != ""]
     if not non_empty:
         return False
     return any(c.endswith(":") for c in non_empty)
 
 
-def _sheet_to_text(sheet_name: str, rows: List[Tuple]) -> str:
-    """Build header + row-oriented text for one sheet. Rows are separated by a
-    blank line so the text chunker treats each as its own unit."""
+def _sheet_to_text(sheet_name: str, rows: List[Tuple], truncated: bool = False) -> str:
+    """Build header + row-oriented text for one sheet.
+
+    Rows are separated by a blank line so the text chunker treats each as its
+    own unit.  When ``truncated`` is True a note is appended to the row count
+    line to indicate that the sheet exceeded ``_MAX_ROWS_PER_SHEET``.
+    """
     if not rows:
         return ""
 
@@ -90,10 +225,13 @@ def _sheet_to_text(sheet_name: str, rows: List[Tuple]) -> str:
     col_preview = ", ".join(headers[:_MAX_HEADER_COLS])
     if len(headers) > _MAX_HEADER_COLS:
         col_preview += f", ... ({len(headers)} columns total)"
+    row_label = f"Total rows: {len(data_rows)}"
+    if truncated:
+        row_label += f" (truncated to {_MAX_ROWS_PER_SHEET})"
     header_block = (
         f"Sheet: {sheet_name}\n"
         f"Columns: {col_preview}\n"
-        f"Total rows: {len(data_rows)}"
+        f"{row_label}"
     )
 
     row_texts = [t for t in (_row_to_kv(headers, r) for r in data_rows) if t]
@@ -144,8 +282,9 @@ def _build_sheet_media_map(zf: zipfile.ZipFile) -> Dict[str, List[str]]:
             drawing_rels = _read_rels(f"xl/drawings/_rels/{drawing_name}.rels")
             for media_target in drawing_rels.values():
                 if "media/" in media_target:
-                    media_name = media_target.split("media/")[-1]
-                    sheet_media[sheet_name].append(f"xl/media/{media_name}")
+                    sheet_media[sheet_name].append(
+                        f"xl/media/{os.path.basename(media_target)}"
+                    )
     return sheet_media
 
 
@@ -162,14 +301,14 @@ class ExcelExtractor:
         path: str,
         image_filter: Optional[ImageFilterPipeline] = None,
     ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
-        if image_filter is None:
-            image_filter = ImageFilterPipeline()
-        image_filter.reset()
         base_name = os.path.splitext(os.path.basename(path))[0]
         empty: Dict[str, Any] = {"_base_name": base_name, "metadata": {}, "pgs": []}
         try:
             if path.lower().endswith(".csv"):
                 return self._extract_csv(path, base_name)
+            if image_filter is None:
+                image_filter = ImageFilterPipeline()
+            image_filter.reset()
             return self._extract_xlsx(path, base_name, image_filter)
         except ImportError:
             raise
@@ -183,17 +322,26 @@ class ExcelExtractor:
             sample = f.read(8192)
             f.seek(0)
             try:
-                dialect = _csv.Sniffer().sniff(sample) if sample else _csv.excel
+                dialect = (
+                    _csv.Sniffer().sniff(sample, delimiters=",;\t|")
+                    if sample else _csv.excel
+                )
             except _csv.Error:
                 dialect = _csv.excel
-            rows = [tuple(r) for r in _csv.reader(f, dialect)]
+            rows: List[Tuple] = []
+            truncated = False
+            for r in _csv.reader(f, dialect):
+                if len(rows) >= _MAX_ROWS_PER_SHEET:
+                    truncated = True
+                    break
+                rows.append(tuple(r))
 
-        txt = _sheet_to_text(base_name, rows)
+        txt = _sheet_to_text(base_name, rows, truncated=truncated)
         document = {
             "metadata": {"sheet_count": 1, "row_count": max(0, len(rows) - 1)},
             "_base_name": base_name,
             "pgs": [{"pg_num": 1, "kind": "sheet", "title": base_name,
-                     "txt": txt, "tables": [], "imgs": []}],
+                     "txt": txt, "tables": [], "hyperlinks": [], "imgs": []}],
         }
         return document, []
 
@@ -212,26 +360,75 @@ class ExcelExtractor:
             ) from e
         from PIL import Image
 
-        wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
+        # read_only=False is required to access sheet_state and column_dimensions.
+        wb = openpyxl.load_workbook(path, data_only=True, read_only=False)
         try:
-            sheet_names = list(wb.sheetnames)
-            sheet_index = {name: i + 1 for i, name in enumerate(sheet_names)}
+            all_names = list(wb.sheetnames)
+
+            # Open each worksheet once to read sheet_state; keep (name, ws) pairs
+            # for visible sheets so the processing loop reuses the same objects.
+            visible_sheets: List[Tuple[str, Any]] = []
+            for n in all_names:
+                ws = wb[n]
+                if getattr(ws, "sheet_state", "visible") == "visible":
+                    visible_sheets.append((n, ws))
+
+            visible_names = [n for n, _ in visible_sheets]
+
+            # Map sheet name → pg_num using only visible sheets so that the
+            # pg_num here matches the pg_num assigned in document["pgs"] below.
+            sheet_index: Dict[str, int] = {
+                name: i + 1 for i, name in enumerate(visible_names)
+            }
+
+            named_ranges_txt = _named_ranges_text(wb)
 
             document: Dict[str, Any] = {
-                "metadata": {"sheet_count": len(sheet_names), "sheet_names": sheet_names},
+                "metadata": {
+                    "sheet_count":        len(visible_names),
+                    "sheet_names":        visible_names,
+                    "hidden_sheet_count": len(all_names) - len(visible_names),
+                    "has_named_ranges":   bool(named_ranges_txt),
+                },
                 "_base_name": base_name,
                 "pgs": [],
             }
-            for pg_num, name in enumerate(sheet_names, start=1):
-                ws   = wb[name]
-                rows = list(ws.iter_rows(values_only=True))
+            for pg_num, (name, ws) in enumerate(visible_sheets, start=1):
+
+                # Determine hidden columns (0-based indices) before iterating rows.
+                hidden_cols = _hidden_col_indices(ws)
+
+                # Apply row and column caps; drop hidden columns in the same pass.
+                raw_rows: List[Tuple] = []
+                truncated = False
+                for i, row in enumerate(ws.iter_rows(values_only=True)):
+                    if i >= _MAX_ROWS_PER_SHEET:
+                        truncated = True
+                        break
+                    capped: Tuple = row[:_MAX_COLS_READ]
+                    if hidden_cols:
+                        capped = tuple(v for j, v in enumerate(capped) if j not in hidden_cols)
+                    raw_rows.append(capped)
+
+                rows = _trim_trailing_empty_cols(raw_rows)
+                hyperlinks = _extract_hyperlinks(ws)
+                sheet_txt = _sheet_to_text(name, rows, truncated=truncated)
+
+                # Append named ranges to the first sheet so they are indexed
+                # once per workbook without creating an artificial extra page.
+                if pg_num == 1 and named_ranges_txt:
+                    sheet_txt = (
+                        f"{sheet_txt}\n\n{named_ranges_txt}" if sheet_txt else named_ranges_txt
+                    )
+
                 document["pgs"].append({
-                    "pg_num": pg_num,
-                    "kind":   "sheet",
-                    "title":  name,
-                    "txt":    _sheet_to_text(name, rows),
-                    "tables": [],
-                    "imgs":   [],
+                    "pg_num":     pg_num,
+                    "kind":       "sheet",
+                    "title":      name,
+                    "txt":        sheet_txt,
+                    "tables":     [],
+                    "hyperlinks": hyperlinks,
+                    "imgs":       [],
                 })
         finally:
             wb.close()
@@ -245,7 +442,6 @@ class ExcelExtractor:
 
         try:
             sheet_media_map = _build_sheet_media_map(zf)
-            converted: Dict[str, bytes] = {}
             vector_items, wdp_items, seen = [], [], set()
             for media_paths in sheet_media_map.values():
                 for media_path in media_paths:
@@ -262,13 +458,20 @@ class ExcelExtractor:
                     elif ext in WDP_EXTS:
                         wdp_items.append((media_path, raw))
                         seen.add(media_path)
-            converted = batch_convert_vectors_to_png(vector_items, self.vector_timeout)
+            converted: Dict[str, bytes] = batch_convert_vectors_to_png(
+                vector_items, self.vector_timeout
+            )
+            vector_items.clear()
             converted.update(decode_wdp_to_png(wdp_items))
+            wdp_items.clear()
 
             per_sheet_idx: Dict[int, int] = defaultdict(int)
             processed_media: Set[str] = set()
             for sheet_name, media_paths in sheet_media_map.items():
-                pg_num = sheet_index.get(sheet_name, 1)
+                pg_num = sheet_index.get(sheet_name)
+                if pg_num is None:
+                    # Hidden sheet — no page was created for it; skip its images.
+                    continue
                 for media_path in media_paths:
                     # Deduplicate across all sheets (covers converted vectors
                     # and any raster referenced by multiple sheets).
@@ -276,7 +479,7 @@ class ExcelExtractor:
                         continue
                     ext = os.path.splitext(media_path)[1].lower()
                     if media_path in converted:
-                        image_bytes, ext_out = converted[media_path], "png"
+                        image_bytes, ext_out = converted.pop(media_path), "png"
                     elif ext in RASTER_EXTS:
                         try:
                             image_bytes = zf.read(media_path)
