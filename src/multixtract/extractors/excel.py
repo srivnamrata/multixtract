@@ -468,10 +468,11 @@ class ExcelExtractor:
             per_sheet_idx: Dict[int, int] = defaultdict(int)
             processed_media: Set[str] = set()
             for sheet_name, media_paths in sheet_media_map.items():
-                pg_num = sheet_index.get(sheet_name)
-                if pg_num is None:
+                _pg = sheet_index.get(sheet_name)
+                if _pg is None:
                     # Hidden sheet — no page was created for it; skip its images.
                     continue
+                pg_num = _pg
                 for media_path in media_paths:
                     # Deduplicate across all sheets (covers converted vectors
                     # and any raster referenced by multiple sheets).
