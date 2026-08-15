@@ -4,7 +4,7 @@ All notable changes to this project will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.2] — 2026-08-14
+## [0.1.2] — 2026-08-15
 
 ### Added
 
@@ -28,6 +28,30 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `_chunks.json` schema: `{"_header": {"file_path", "file_name", "total_pgs"}, "chunks": [...]}`; each chunk has `chunk_id`, `chunk_type`, `pg_num`, `chunk_idx`, `content`, `token_cnt`, `metadata` (nested, type-specific), `embedding`
 - Token count computed once per chunk (no double `estimate_tokens` call)
 - `_splits_from_buffer()` internal helper returns `(content, token_cnt)` pairs; both code paths (elements + legacy) share it
+
+### Fixed
+
+**Excel extractor**
+- `_is_metadata_row`: replaced double `str(c).strip()` evaluation with a walrus-operator assignment so the stripped string is computed once and reused in the filter — eliminates a subtle correctness risk when the cell value has side effects and improves readability.
+- `_extract_hyperlinks`: probes `ws.hyperlinks` for accessibility before iterating; falls back to per-cell `.hyperlink` attribute scanning when the collection is unavailable or raises, preventing silent data loss on worksheets with unusual hyperlink formats.
+- Type narrowing in `_build_pages` (`_pg` intermediate variable) — removes a mypy `int | None` incompatible-assignment error that appeared on Python 3.10.
+
+**Memory / OOM guards** (all extractors, pipeline, image utilities)
+- CSV extractor: switched from eager full-file load to streaming row-by-row read; honours `_MAX_ROWS_PER_SHEET` with early `break` so large CSVs never materialise fully in memory.
+- PDF extractor: changed `converted[key]` and `raster_cache[key]` lookups to `.pop()` so raw image bytes are released immediately after use instead of persisting for the lifetime of the page loop.
+- DOCX / PPTX / XLSX extractors: call `.clear()` on `vector_items` and `wdp_items` lists after the LibreOffice batch conversion returns; use `.pop()` when consuming the `converted` dict so each image's bytes are freed as soon as they are encoded.
+- Pipeline vision worker: releases `image_bytes` per-future (inside `as_completed`) rather than after all futures complete, reducing peak memory proportional to `vision_workers`.
+- `_image_utils.py` — `batch_convert_vectors_to_png`: deletes `raw` bytes after writing to the temp directory (bytes are now on disk; no need to keep them in RAM before spawning LibreOffice); `decode_wdp_to_png`: deletes the intermediate numpy array returned by `imagecodecs.jpegxr_decode` before PIL takes ownership of the same pixel data.
+
+### Changed
+
+- **Coverage configuration** (`pyproject.toml`): added `[tool.coverage.report] exclude_lines` patterns for GPU-dependent model-loading branches (`AutoProcessor.from_pretrained`, `MllamaForConditionalGeneration.from_pretrained`, `Qwen2_5_VLForConditionalGeneration.from_pretrained`, `AutoModelForVision2Seq.from_pretrained`, CUDA device/dtype selection). Provider source files remain annotation-free; exclusions are declared centrally in config.
+
+### Tests
+
+- Replaced hollow mock-heavy tests in `tests/test_coverage_gaps.py` with 53 honest tests that exercise real code paths using actual fixture files and in-memory inputs.
+- New fixtures: `tests/fixtures/hidden_cols.xlsx` (XLSX with a hidden column to verify exclusion), `tests/fixtures/large.xlsx` and `tests/fixtures/large.csv` (10 001-row files to verify truncation behaviour).
+- Adopted correct `monkeypatch.setitem(sys.modules, …)` pattern for optional-dependency absence tests; import class before patching to preserve class identity in registry assertions; no module reloads.
 
 ## [0.1.1] — 2026-08-01
 

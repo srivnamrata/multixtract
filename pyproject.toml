@@ -118,3 +118,25 @@ select = ["E", "F", "I"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.coverage.report]
+# Lines that cannot be exercised without specific hardware or optional
+# heavyweight dependencies (GPU, full HuggingFace model weights) are excluded
+# from the coverage report.  The exclusion patterns match whole logical
+# branches, not individual statements, so source code stays annotation-free.
+exclude_lines = [
+    # Standard pragma
+    "pragma: no cover",
+    # Abstract / protocol stubs
+    "raise NotImplementedError",
+    # GPU-dependent model loading (llama, qwen2vl, smolvlm) — requires CUDA
+    # hardware and HuggingFace model weights not available in CI.
+    "AutoProcessor\\.from_pretrained",
+    "MllamaForConditionalGeneration\\.from_pretrained",
+    "Qwen2_5_VLForConditionalGeneration\\.from_pretrained",
+    "AutoModelForVision2Seq\\.from_pretrained",
+    # Device / dtype selection only reachable on GPU runners
+    "if self\\.device == .cuda.",
+    "if load_in_4bit:",
+    "load_kwargs\\[.device_map.\\] = .auto.",
+]
