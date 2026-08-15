@@ -19,10 +19,10 @@ from __future__ import annotations
 import io
 import logging
 import os
+import re as _re
 import xml.etree.ElementTree as ET
 import zipfile
 from collections import defaultdict
-import re as _re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..filters import ImageFilterPipeline
