@@ -36,10 +36,16 @@ from ._image_utils import (
 
 log = logging.getLogger("multixtract.extractors.pptx")
 
+import re as _re
+
 _A_NS          = "http://schemas.openxmlformats.org/drawingml/2006/main"
 _PKG_REL_NS    = "http://schemas.openxmlformats.org/package/2006/relationships"
 _PPTX_MAIN_NS  = "http://schemas.openxmlformats.org/presentationml/2006/main"
 _OFFICE_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+
+# Pre-compiled patterns for slide part discovery (used in fallback path).
+_SLIDE_XML_RE  = _re.compile(r"ppt/slides/(slide(\d+)\.xml)$")
+_SLIDE_RELS_RE = _re.compile(r"ppt/slides/_rels/(slide(\d+)\.xml)\.rels$")
 
 
 def _iter_all_shapes(shapes, mso):
@@ -142,12 +148,9 @@ def _slide_part_names(zf: zipfile.ZipFile) -> List[str]:
 
     # Fallback: derive slide part names from either the .xml entries or their
     # .rels files (rels live under _rels/; the test fixture may only have those).
-    import re as _re
-    _xml_re  = _re.compile(r"ppt/slides/(slide(\d+)\.xml)$")
-    _rels_re = _re.compile(r"ppt/slides/_rels/(slide(\d+)\.xml)\.rels$")
     seen_stems: Dict[int, str] = {}
     for name in namelist:
-        for pattern in (_xml_re, _rels_re):
+        for pattern in (_SLIDE_XML_RE, _SLIDE_RELS_RE):
             m = pattern.match(name)
             if m:
                 stem, num = m.group(1), int(m.group(2))

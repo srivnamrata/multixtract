@@ -518,8 +518,12 @@ def test_converting_extractor_sets_base_name_and_converted_from(tmp_path):
         "multixtract.extractors.legacy.convert_with_libreoffice",
         return_value=str(converted),
     ):
-        extractor = ConvertingExtractor((".doc",), targets=(".docx",), registry=FakeRegistry())
-        doc, _ = extractor.extract(str(src))
+        with patch(
+            "multixtract.extractors.legacy.find_libreoffice",
+            return_value="/usr/bin/soffice",
+        ):
+            extractor = ConvertingExtractor((".doc",), targets=(".docx",), registry=FakeRegistry())
+            doc, _ = extractor.extract(str(src))
 
     assert doc["_base_name"] == "report"
     assert doc["metadata"]["converted_from"] == ".doc"

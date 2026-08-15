@@ -40,8 +40,8 @@ register_extractor(DocxExtractor())  # native .docx
 register_extractor(PptxExtractor())  # native .pptx
 register_extractor(ExcelExtractor())  # .xlsx / .xlsm / .csv
 register_extractor(ImageExtractor())  # .png / .jpg / .jpeg / .tiff / .tif / .webp / .bmp
-register_extractor(TextExtractor())    # .txt / .log / .conf / .ini / .md
-register_extractor(MarkdownExtractor())  # .md — overrides TextExtractor for .md
+register_extractor(TextExtractor())      # .txt / .log / .conf / .ini
+register_extractor(MarkdownExtractor())  # .md (heading-aware splitting)
 register_extractor(HtmlExtractor())      # .html / .htm
 register_extractor(EmlExtractor())       # .eml
 register_extractor(RtfExtractor())       # .rtf

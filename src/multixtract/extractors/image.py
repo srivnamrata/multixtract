@@ -75,14 +75,15 @@ class ImageExtractor:
             }
             prepared = [
                 {
-                    "image_id":   f"{base_name}__p1_img0",
+                    "image_id":    f"{base_name}__p1_img0",
                     "page_number": 1,
-                    "img_idx":    0,
+                    "img_idx":     0,
                     "image_bytes": file_bytes,
-                    "ext":        ext,
-                    "width":      width,
-                    "height":     height,
-                    "img_path":   f"pg1_img0.{ext}",
+                    "ext":         ext,
+                    "width":       width,
+                    "height":      height,
+                    "size_bytes":  len(file_bytes),
+                    "img_path":    f"pg1_img0.{ext}",
                 }
             ]
             return document, prepared
@@ -120,6 +121,7 @@ class ImageExtractor:
                 pages.append(
                     {
                         "pg_num": pg_num,
+                        "kind": "page",
                         "txt": "",
                         "tables": [],
                         "imgs": [],
@@ -134,6 +136,7 @@ class ImageExtractor:
                         "ext":         "png",
                         "width":       width,
                         "height":      height,
+                        "size_bytes":  len(frame_bytes),
                         "img_path":    f"pg{pg_num}_img0.png",
                     }
                 )

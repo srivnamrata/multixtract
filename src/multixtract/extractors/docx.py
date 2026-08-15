@@ -23,25 +23,6 @@ import os
 import zipfile
 from typing import Any, Dict, List, Optional, Tuple
 
-# python-docx uses lxml internally. By default lxml limits text nodes to ~10 MB
-# (xmlSAX2Characters: huge text node). Large engineering DOCX files routinely
-# exceed this. Patch the parser with huge_tree=True at import time so the limit
-# is lifted for all subsequent python-docx operations in this process.
-# The patch is applied once and is safe to import multiple times (try/except
-# guards against python-docx versions that reorganise internal globals).
-try:
-    import docx.oxml as _docx_oxml
-    from lxml import etree as _lxml_etree
-
-    _huge_parser = _lxml_etree.XMLParser(remove_blank_text=True, huge_tree=True)
-    _element_class_lookup = _docx_oxml.parse_xml.__globals__.get("element_class_lookup")
-    if _element_class_lookup is not None:
-        _huge_parser.set_element_class_lookup(_element_class_lookup)
-    _docx_oxml.parse_xml.__globals__["oxml_parser"] = _huge_parser
-    log_msg = "huge_tree=True applied (supports DOCX files >10 MB)"
-except Exception:
-    log_msg = "huge_tree patch skipped (lxml or docx.oxml not available yet)"
-
 from ..filters import ImageFilterPipeline
 from ._image_utils import (
     IMAGE_EXTS,
@@ -53,7 +34,6 @@ from ._image_utils import (
 )
 
 log = logging.getLogger("multixtract.extractors.docx")
-log.debug("%s", log_msg)
 
 # ── OOXML namespaces ──
 _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -245,6 +225,31 @@ class DocxExtractor:
 
     extensions: Tuple[str, ...] = (".docx",)
 
+    # python-docx uses lxml internally. By default lxml limits text nodes to
+    # ~10 MB (xmlSAX2Characters). Large engineering DOCX files routinely exceed
+    # this. The patch injects an XMLParser(huge_tree=True) into python-docx's
+    # global parser slot.  Applied lazily on first extract() call — importing
+    # multixtract never modifies global lxml state. The flag is idempotent;
+    # concurrent threads may both apply the patch, which is harmless.
+    _huge_tree_ready: bool = False
+
+    @classmethod
+    def _ensure_huge_tree(cls) -> None:
+        """One-time lxml parser patch. Safe for all file sizes (no perf cost)."""
+        cls._huge_tree_ready = True
+        try:
+            import docx.oxml as _docx_oxml
+            from lxml import etree as _lxml_etree
+
+            parser = _lxml_etree.XMLParser(remove_blank_text=True, huge_tree=True)
+            lookup = _docx_oxml.parse_xml.__globals__.get("element_class_lookup")
+            if lookup is not None:
+                parser.set_element_class_lookup(lookup)
+            _docx_oxml.parse_xml.__globals__["oxml_parser"] = parser
+            log.debug("huge_tree=True applied (supports DOCX files >10 MB)")
+        except Exception:
+            log.debug("huge_tree patch skipped (lxml or docx.oxml unavailable)")
+
     def __init__(self, vector_timeout: int = 120) -> None:
         self.vector_timeout = vector_timeout
 
@@ -260,6 +265,9 @@ class DocxExtractor:
                 "Word support requires python-docx: pip install 'multixtract[docx]'"
             ) from e
         from PIL import Image
+
+        if not DocxExtractor._huge_tree_ready:
+            DocxExtractor._ensure_huge_tree()
 
         if image_filter is None:
             image_filter = ImageFilterPipeline()

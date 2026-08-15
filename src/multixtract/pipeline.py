@@ -232,7 +232,8 @@ class Pipeline:
         return image_index
 
     def _persist_images(self, base_name: str, prepared: List[Dict[str, Any]]) -> None:
-        assert self.store is not None
+        if self.store is None:
+            raise RuntimeError("_persist_images requires a store — none configured")
         config = self.config
         ext_to_mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
                        "gif": "image/gif", "bmp": "image/bmp",
@@ -260,7 +261,8 @@ class Pipeline:
             chunks[chunk_index]["embedding"] = vec
 
     def _persist(self, result: ExtractionResult) -> None:
-        assert self.store is not None
+        if self.store is None:
+            raise RuntimeError("_persist requires a store — none configured")
         config = self.config
         base_name = result.base_name
         # Write image and chunk blobs first; doc JSON is written last and acts

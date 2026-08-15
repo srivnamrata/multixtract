@@ -1,7 +1,7 @@
-"""Plain-text extractor (.txt / .log / .conf / .ini / .md).
+"""Plain-text extractor (.txt / .log / .conf / .ini).
 
-The entire file becomes a single page. A dedicated MarkdownExtractor
-registered later will override the .md extension with richer handling.
+The entire file becomes a single page. Markdown (.md) is handled by
+the dedicated MarkdownExtractor which provides richer heading-based splitting.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ log = logging.getLogger("multixtract")
 class TextExtractor:
     """DocumentExtractor for plain-text files."""
 
-    extensions: Tuple[str, ...] = (".txt", ".log", ".conf", ".ini", ".md")
+    extensions: Tuple[str, ...] = (".txt", ".log", ".conf", ".ini")
 
     def extract(
         self,

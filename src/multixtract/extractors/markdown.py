@@ -1,7 +1,7 @@
 """Markdown extractor (.md).
 
-Splits on H1 headings into logical pages. Registered after TextExtractor so
-it wins for .md — later registration overwrites earlier in the registry.
+Splits on H1 headings into logical pages. Sole owner of the .md extension;
+TextExtractor handles only .txt / .log / .conf / .ini.
 """
 from __future__ import annotations
 

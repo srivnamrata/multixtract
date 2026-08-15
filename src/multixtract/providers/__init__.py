@@ -36,3 +36,7 @@ __all__ = [
     "SmolVLMVisionModel",
     "Llama32VisionModel",
 ]
+
+
+def __dir__():
+    return __all__
