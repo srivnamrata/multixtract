@@ -22,6 +22,7 @@ import os
 import xml.etree.ElementTree as ET
 import zipfile
 from collections import defaultdict
+import re as _re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..filters import ImageFilterPipeline
@@ -36,7 +37,6 @@ from ._image_utils import (
 
 log = logging.getLogger("multixtract.extractors.pptx")
 
-import re as _re
 
 _A_NS          = "http://schemas.openxmlformats.org/drawingml/2006/main"
 _PKG_REL_NS    = "http://schemas.openxmlformats.org/package/2006/relationships"

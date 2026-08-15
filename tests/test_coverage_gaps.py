@@ -501,6 +501,11 @@ from multixtract.extractors.legacy import ConvertingExtractor  # noqa: E402
 
 
 def test_converting_extractor_sets_base_name_and_converted_from(tmp_path):
+    from multixtract.extractors.legacy import find_libreoffice
+
+    if find_libreoffice() is None:
+        pytest.skip("LibreOffice not installed — skipping legacy extractor test")
+
     src = tmp_path / "report.doc"
     src.write_text("fake")
     converted = tmp_path / "report.docx"
@@ -518,12 +523,8 @@ def test_converting_extractor_sets_base_name_and_converted_from(tmp_path):
         "multixtract.extractors.legacy.convert_with_libreoffice",
         return_value=str(converted),
     ):
-        with patch(
-            "multixtract.extractors.legacy.find_libreoffice",
-            return_value="/usr/bin/soffice",
-        ):
-            extractor = ConvertingExtractor((".doc",), targets=(".docx",), registry=FakeRegistry())
-            doc, _ = extractor.extract(str(src))
+        extractor = ConvertingExtractor((".doc",), targets=(".docx",), registry=FakeRegistry())
+        doc, _ = extractor.extract(str(src))
 
     assert doc["_base_name"] == "report"
     assert doc["metadata"]["converted_from"] == ".doc"
