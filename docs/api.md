@@ -211,6 +211,19 @@ stats.failed    # int — store write errors
 stats.deduped   # int — image chunks whose echo content was deduplicated
 ```
 
+### `Pipeline.process_batch`
+
+```python
+summary = pipeline.process_batch(
+    "report.pdf",          # one or more files and/or directories
+    "./documents",
+    max_workers=4,         # concurrent documents
+)
+# summary: BatchResult
+```
+
+Thin facade over `BatchProcessor`. For full control (custom `BatchConfig`, `on_progress`, custom `DocumentSource`) use `BatchProcessor` directly.
+
 ### `ExtractionResult`
 
 ```python
@@ -220,7 +233,18 @@ result.chunks         # list[dict]
 result.image_index    # list[dict] — flat list of all images with vision metadata
 result.filter_stats   # dict — {"kept": n, "dimension": n, "solid_color": n, ...}
 result.split_stats    # SplitStats | None — populated when split_chunks=True
+result.degradations   # list[dict] — partial failures; see below
 ```
+
+**`degradations`** entries have the shape `{"stage": str, "id": str, "error": str | None}`:
+
+| `stage` | When populated | `error` |
+|---|---|---|
+| `"vision"` | `VisionModel.analyze` raised | exception string |
+| `"embed_image"` | embedder returned `None` for an image | `None` |
+| `"embed_chunk"` | embedder returned `None` for a chunk | `None` |
+
+Only populated when the corresponding provider is configured. An empty list means no partial failures occurred.
 
 ### `PipelineConfig`
 
@@ -242,6 +266,153 @@ PipelineConfig(
     individual_chunks_subdir="individual_chunks",
 )
 ```
+
+#### `PipelineConfig.from_env`
+
+```python
+config = PipelineConfig.from_env()
+# reads MULTIXTRACT_VISION_WORKERS, MULTIXTRACT_CHUNK_TARGET_TOKENS, etc.
+
+config = PipelineConfig.from_env(prefix="APP_")
+# reads APP_VISION_WORKERS, APP_CHUNK_TARGET_TOKENS, etc.
+```
+
+Every field maps to `<prefix><FIELD_NAME_UPPER>`. Integer fields are coerced; malformed or absent variables fall back to dataclass defaults.
+
+| Environment variable | Field | Default |
+|---|---|---|
+| `MULTIXTRACT_MIN_IMAGE_SIZE` | `min_image_size` | `100` |
+| `MULTIXTRACT_MIN_IMAGE_SIZE_MINOR` | `min_image_size_minor` | `75` |
+| `MULTIXTRACT_REFERENCE_IMG_DIR` | `reference_img_dir` | `""` |
+| `MULTIXTRACT_VISION_WORKERS` | `vision_workers` | `6` |
+| `MULTIXTRACT_EMBED_TEXT_LIMIT` | `embed_text_limit` | `8000` |
+| `MULTIXTRACT_CHUNK_TARGET_TOKENS` | `chunk_target_tokens` | `500` |
+| `MULTIXTRACT_CHUNK_OVERLAP_TOKENS` | `chunk_overlap_tokens` | `50` |
+| `MULTIXTRACT_IMAGES_SUBDIR` | `images_subdir` | `"extracted_images"` |
+| `MULTIXTRACT_DOC_JSON_SUBDIR` | `doc_json_subdir` | `"jsons"` |
+| `MULTIXTRACT_IMAGE_JSON_SUBDIR` | `image_json_subdir` | `"image_jsons"` |
+| `MULTIXTRACT_CHUNKS_SUBDIR` | `chunks_subdir` | `"chunks"` |
+| `MULTIXTRACT_INDIVIDUAL_CHUNKS_SUBDIR` | `individual_chunks_subdir` | `"individual_chunks"` |
+
+---
+
+## Batch processing
+
+### `BatchProcessor`
+
+```python
+from multixtract.batch import BatchProcessor, BatchConfig
+
+processor = BatchProcessor(pipeline, config=BatchConfig(max_workers=8))
+
+# From mixed file / directory paths (CLI-style)
+result = processor.process_inputs(["report.pdf", "./docs"])
+
+# From any DocumentSource implementation
+result = processor.process_source(my_source)
+
+# From a pre-built path iterator
+result = processor.process_paths(iter([Path("a.pdf"), Path("b.pdf")]))
+```
+
+### `BatchConfig`
+
+```python
+BatchConfig(
+    max_workers=4,        # concurrent documents
+    skip_if_exists=True,  # skip docs already in the store
+    split_chunks=False,   # write per-chunk documents after each doc
+    on_progress=None,     # Callable[[Path, ExtractionResult | Exception], None]
+)
+```
+
+**`on_progress`** is called after every document — succeeded, skipped, or failed. The second argument is the `ExtractionResult` on success/skip, or the `Exception` on failure. Callback exceptions are caught and logged; they never abort the batch.
+
+```python
+from tqdm import tqdm
+
+bar = tqdm(unit="doc")
+config = BatchConfig(max_workers=8, on_progress=lambda path, r: bar.update(1))
+processor = BatchProcessor(pipeline, config)
+processor.process_inputs(["./documents"])
+```
+
+### `BatchResult`
+
+```python
+result.succeeded   # int
+result.failed      # int
+result.skipped     # int
+result.total       # int — succeeded + failed + skipped
+result.failures    # list[DocumentFailure]
+```
+
+### `DocumentFailure`
+
+```python
+result.failures[0].path    # Path — absolute path to the failed document
+result.failures[0].error   # Exception
+```
+
+---
+
+## Formatters
+
+### `AzureAISearchFormatter`
+
+```python
+from multixtract.formatters import AzureAISearchFormatter
+
+# From an in-process ExtractionResult
+docs = AzureAISearchFormatter.from_result(result)
+docs = AzureAISearchFormatter.from_result(result, timestamp="2026-08-19T10:00:00Z", skip_empty=True)
+
+# From a _chunks.json dict (post-processing / offline path)
+docs = AzureAISearchFormatter.from_chunks_file(chunks_data)
+
+# Upload to Azure AI Search
+search_client.upload_documents(documents=docs)
+```
+
+Each document in `docs` is a flat dict produced by `build_index_document` — same schema as documented under `build_index_document` above.
+
+#### `AzureAISearchFormatter.index_schema`
+
+```python
+from azure.search.documents.indexes import SearchIndexClient
+
+schema = AzureAISearchFormatter.index_schema(
+    index_name="my-index",
+    vector_dim=1024,        # must match your embedding model's output dim
+)
+index_client.create_or_update_index(schema)
+```
+
+Returns a `SearchIndex` configured for hybrid (keyword + vector) retrieval. Requires `azure-search-documents` to be installed; the import is deferred so the package is not needed unless this method is called.
+
+---
+
+## Token utilities
+
+### `count_tokens`
+
+```python
+from multixtract import count_tokens
+
+n: int = count_tokens("Some text to count.")
+```
+
+Uses `tiktoken` (`cl100k_base` encoding) when installed (`pip install "multixtract[tiktoken]"`); falls back to the fast heuristic otherwise. Used internally for all final `token_cnt` stamps on chunks.
+
+### `estimate_tokens`
+
+```python
+from multixtract import estimate_tokens
+
+n: int = estimate_tokens("Some text.")
+```
+
+Fast heuristic (no external dependency). Used in the splitting hot path where tiktoken would be too slow.
 
 ---
 

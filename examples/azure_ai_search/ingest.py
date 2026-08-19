@@ -30,37 +30,9 @@ VECTOR_DIM = 1024
 
 
 def ensure_index(client, index_name: str) -> None:
-    from azure.search.documents.indexes.models import (
-        HnswAlgorithmConfiguration,
-        SearchableField,
-        SearchField,
-        SearchFieldDataType,
-        SearchIndex,
-        SimpleField,
-        VectorSearch,
-        VectorSearchProfile,
-    )
-    fields = [
-        SimpleField(name="chunk_id",   type=SearchFieldDataType.String, key=True),
-        SimpleField(name="doc_id",     type=SearchFieldDataType.String, filterable=True),
-        SimpleField(name="file_name",  type=SearchFieldDataType.String, filterable=True),
-        SimpleField(name="chunk_type", type=SearchFieldDataType.String, filterable=True),
-        SimpleField(name="pg_num",     type=SearchFieldDataType.Int32,  filterable=True),
-        SearchableField(name="content", type=SearchFieldDataType.String),
-        SearchField(
-            name="embedding",
-            type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
-            searchable=True,
-            vector_search_dimensions=VECTOR_DIM,
-            vector_search_profile_name="hnsw-profile",
-        ),
-    ]
-    vector_search = VectorSearch(
-        algorithms=[HnswAlgorithmConfiguration(name="hnsw")],
-        profiles=[VectorSearchProfile(name="hnsw-profile", algorithm_configuration_name="hnsw")],
-    )
-    index = SearchIndex(name=index_name, fields=fields, vector_search=vector_search)
-    client.create_or_update_index(index)
+    from multixtract.formatters import AzureAISearchFormatter
+    schema = AzureAISearchFormatter.index_schema(index_name, vector_dim=VECTOR_DIM)
+    client.create_or_update_index(schema)
     print(f"  Index '{index_name}' ready")
 
 
@@ -70,6 +42,7 @@ def ingest(doc_path: str) -> None:
     from azure.search.documents.indexes import SearchIndexClient
 
     from multixtract import Pipeline
+    from multixtract.formatters import AzureAISearchFormatter
     from multixtract.providers import AzureOpenAIEmbedder, AzureOpenAIVisionModel
     from multixtract.providers.storage import LocalDiskStore
 
@@ -95,28 +68,12 @@ def ingest(doc_path: str) -> None:
         ),
         store=LocalDiskStore("./output"),
     )
-    result = pipeline.process(
-        doc_path,
-        file_path=os.path.abspath(doc_path),
-        file_name=os.path.basename(doc_path),
-    )
+    result = pipeline.process(doc_path)
     print(f"  {len(result.chunks)} chunks produced")
 
     # Upload to Azure AI Search
     search_client = SearchClient(search_ep, index_name, AzureKeyCredential(search_key))
-    docs = [
-        {
-            "chunk_id":   c["chunk_id"].replace(".", "_"),  # key must be URL-safe
-            "doc_id":     c.get("doc_id", ""),
-            "file_name":  c.get("file_name", ""),
-            "chunk_type": c["chunk_type"],
-            "pg_num":     c["pg_num"],
-            "content":    c["content"],
-            "embedding":  c.get("embedding") or [],
-        }
-        for c in result.chunks
-        if c["content"].strip()
-    ]
+    docs = AzureAISearchFormatter.from_result(result)
     result_upload = search_client.upload_documents(documents=docs)
     succeeded = sum(1 for r in result_upload if r.succeeded)
     print(f"  Uploaded {succeeded}/{len(docs)} documents to '{index_name}'")

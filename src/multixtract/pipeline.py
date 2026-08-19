@@ -16,7 +16,8 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from .chunking import build_index_document, chunk_document
 from .extraction import extract_document
@@ -46,6 +47,15 @@ class ExtractionResult:
     image_index: List[Dict[str, Any]] = field(default_factory=list)
     filter_stats: Dict[str, int] = field(default_factory=dict)
     split_stats: Optional[SplitStats] = None
+    degradations: List[Dict[str, Any]] = field(default_factory=list)
+    """Partial failures that did not abort the run.
+
+    Each entry is a dict with at least ``{"stage": str, "id": str, "error": str|None}``:
+
+    * ``stage="vision"``       — vision model raised for an image; no description available.
+    * ``stage="embed_image"``  — embedder returned ``None`` for an image description.
+    * ``stage="embed_chunk"``  — embedder returned ``None`` for a text chunk.
+    """
 
 
 class Pipeline:
@@ -73,16 +83,20 @@ class Pipeline:
 
     def process(
         self,
-        doc_path: str,
+        doc_path: Union[str, Path],
         skip_if_exists: bool = True,
         split_chunks: bool = False,
     ) -> ExtractionResult:
         """Run the full pipeline on a single document.
 
+        *doc_path* may be a ``str`` or :class:`~pathlib.Path`; both are accepted
+        for backward compatibility.
+
         Raises:
             ValueError: If no extractor is registered for the file's extension.
             ImportError: If the required optional extra for this format is not installed.
         """
+        doc_path = str(doc_path)
         base_name = os.path.splitext(os.path.basename(doc_path))[0]
         config = self.config
 
@@ -106,7 +120,7 @@ class Pipeline:
             self._persist_images(base_name, prepared)
 
         # Phase 2a — vision (parallel)
-        vision_by_id = self._run_vision(prepared)
+        vision_by_id, vision_errors = self._run_vision(prepared)
 
         # Phase 2b — embed image descriptions
         image_embeds = self._embed_images(prepared, vision_by_id)
@@ -137,12 +151,25 @@ class Pipeline:
         )
         self._embed_chunks(chunks)
 
+        degradations: List[Dict[str, Any]] = []
+        for image_id, err in vision_errors.items():
+            degradations.append({"stage": "vision", "id": image_id, "error": err})
+        if self.embedder is not None:
+            for img in prepared:
+                iid = img["image_id"]
+                if iid not in vision_errors and image_embeds.get(iid) is None:
+                    degradations.append({"stage": "embed_image", "id": iid, "error": None})
+            for chunk in chunks:
+                if chunk.get("embedding") is None:
+                    degradations.append({"stage": "embed_chunk", "id": chunk["chunk_id"], "error": None})
+
         result = ExtractionResult(
             base_name=base_name,
             document=document,
             chunks=chunks,
             image_index=image_index,
             filter_stats=_filter.filter_stats,
+            degradations=degradations,
         )
 
         if self.store is not None:
@@ -162,15 +189,60 @@ class Pipeline:
                 )
         return result
 
+    def process_batch(
+        self,
+        *inputs: Union[str, Path],
+        max_workers: int = 4,
+    ) -> "BatchResult":
+        """Run the pipeline over one or more files and/or directories.
+
+        A thin facade over :class:`~multixtract.batch.BatchProcessor`.  All
+        concurrency, discovery, resume, and failure-isolation logic lives there.
+        For advanced configuration (``skip_if_exists``, ``split_chunks``, custom
+        :class:`~multixtract.batch.BatchConfig`) use :class:`~multixtract.batch.BatchProcessor`
+        directly.
+
+        Args:
+            *inputs:     One or more file paths and/or directory paths (str or Path).
+            max_workers: Maximum number of documents processed concurrently.
+
+        Returns:
+            :class:`~multixtract.batch.BatchResult` with ``succeeded``, ``failed``,
+            ``skipped`` counts and a ``failures`` list.
+
+        Example::
+
+            # Single file
+            summary = pipeline.process_batch("report.pdf")
+
+            # Whole directory
+            summary = pipeline.process_batch("./documents")
+
+            # Mixed inputs
+            summary = pipeline.process_batch("report.pdf", "./documents")
+        """
+        # Local import: batch.py depends on pipeline.py, so a module-level
+        # import here would create a circular dependency. Python caches modules
+        # in sys.modules, so this resolves in O(1) on every call after the first.
+        from .batch import BatchConfig, BatchProcessor
+
+        return BatchProcessor(
+            self,
+            BatchConfig(max_workers=max_workers),
+        ).process_inputs([str(p) for p in inputs])
+
     # ------------------------------------------------------------------
 
-    def _run_vision(self, prepared: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _run_vision(
+        self, prepared: List[Dict[str, Any]]
+    ) -> Tuple[Dict[str, Any], Dict[str, str]]:
         if self.vision is None or not prepared:
-            return {}
+            return {}, {}
         results: Dict[str, Any] = {}
+        errors: Dict[str, str] = {}
         workers = min(self.config.vision_workers, len(prepared))
-        # Map future -> (image_id, img dict) so bytes can be freed per-image as
-        # each future completes rather than holding all bytes until all are done.
+        # Map future -> img dict so bytes can be freed per-image as each future
+        # completes rather than holding all bytes until all are done.
         with ThreadPoolExecutor(max_workers=workers) as pool:
             futures = {
                 pool.submit(
@@ -185,9 +257,10 @@ class Pipeline:
                 img.pop("image_bytes", None)  # free bytes as soon as the call returns
                 try:
                     results[image_id] = fut.result()
-                except Exception as exc:  # provider should not raise, but be safe
+                except Exception as exc:
+                    errors[image_id] = str(exc)
                     log.warning("vision failed for %s: %s", image_id, exc)
-        return results
+        return results, errors
 
     def _embed_images(self, prepared, vision_by_id) -> Dict[str, List[float]]:
         if self.embedder is None:

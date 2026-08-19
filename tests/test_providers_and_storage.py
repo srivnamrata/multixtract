@@ -15,57 +15,44 @@ import pytest
 
 from multixtract.cli import main
 from multixtract.interfaces import VisionResult
-from multixtract.providers.openai import OpenAIEmbedder, OpenAIVisionModel, _is_permanent, _retry
+from multixtract.providers.openai import OpenAIEmbedder, OpenAIVisionModel
 from multixtract.providers.storage import LocalDiskStore
 
 # ---------------------------------------------------------------------------
-# _retry helpers
+# max_retries forwarded to SDK client
 # ---------------------------------------------------------------------------
 
-def test_retry_returns_on_first_success():
-    assert _retry(lambda: 42) == 42
+def test_vision_model_forwards_max_retries_to_client():
+    # OpenAI is a local import inside __init__, so patch at the openai module level.
+    with patch("openai.OpenAI") as MockOpenAI:
+        MockOpenAI.return_value = MagicMock()
+        OpenAIVisionModel(api_key="test-key", max_retries=5)
+    _, kwargs = MockOpenAI.call_args
+    assert kwargs["max_retries"] == 5
 
 
-def test_retry_succeeds_on_second_attempt():
-    calls = []
-
-    def flaky():
-        calls.append(1)
-        if len(calls) == 1:
-            raise RuntimeError("transient")
-        return "ok"
-
-    with patch("multixtract.providers.openai.time.sleep"):
-        result = _retry(flaky, max_retries=3)
-    assert result == "ok"
-    assert len(calls) == 2
+def test_embedder_forwards_max_retries_to_client():
+    with patch("openai.OpenAI") as MockOpenAI:
+        MockOpenAI.return_value = MagicMock()
+        OpenAIEmbedder(api_key="test-key", max_retries=4)
+    _, kwargs = MockOpenAI.call_args
+    assert kwargs["max_retries"] == 4
 
 
-def test_retry_raises_after_max_attempts():
-    with patch("multixtract.providers.openai.time.sleep"):
-        with pytest.raises(RuntimeError, match="always fails"):
-            _retry(lambda: (_ for _ in ()).throw(RuntimeError("always fails")),
-                   max_retries=3)
+def test_vision_model_default_max_retries():
+    with patch("openai.OpenAI") as MockOpenAI:
+        MockOpenAI.return_value = MagicMock()
+        OpenAIVisionModel(api_key="test-key")
+    _, kwargs = MockOpenAI.call_args
+    assert kwargs["max_retries"] == 2
 
 
-def test_retry_raises_immediately_on_permanent_error():
-    """Permanent errors (auth, bad request) must not be retried."""
-    calls = []
-
-    def raiser():
-        calls.append(1)
-        raise ValueError("permanent")
-
-    with patch("multixtract.providers.openai._is_permanent", return_value=True):
-        with patch("multixtract.providers.openai.time.sleep"):
-            with pytest.raises(ValueError):
-                _retry(raiser, max_retries=5)
-
-    assert len(calls) == 1  # must not retry
-
-
-def test_is_permanent_returns_false_for_generic_error():
-    assert _is_permanent(RuntimeError("oops")) is False
+def test_embedder_default_max_retries():
+    with patch("openai.OpenAI") as MockOpenAI:
+        MockOpenAI.return_value = MagicMock()
+        OpenAIEmbedder(api_key="test-key")
+    _, kwargs = MockOpenAI.call_args
+    assert kwargs["max_retries"] == 2
 
 
 # ---------------------------------------------------------------------------
@@ -89,14 +76,13 @@ def test_vision_model_analyze_returns_vision_result():
     assert result.caption or result.description
 
 
-def test_vision_model_returns_empty_result_on_error():
+def test_vision_model_analyze_raises_on_api_error():
     stub_client = MagicMock()
     stub_client.chat.completions.create.side_effect = RuntimeError("network error")
     model = OpenAIVisionModel(client=stub_client)
-    result = model.analyze(b"not-an-image", ext="png")
-    assert isinstance(result, VisionResult)
-    assert result.caption == ""
-    assert result.description == ""
+    # Pass explicit dimensions so to_data_url takes the fast path (no PIL decode).
+    with pytest.raises(RuntimeError, match="network error"):
+        model.analyze(b"fake", ext="png", width=10, height=10)
 
 
 # ---------------------------------------------------------------------------

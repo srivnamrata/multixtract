@@ -63,6 +63,55 @@ def test_extraction_result_defaults():
     assert result.chunks == []
     assert result.image_index == []
     assert result.filter_stats == {}
+    assert result.degradations == []
+
+
+def test_extraction_result_degradations_field():
+    d = {"stage": "vision", "id": "pg1_img0", "error": "RateLimitError"}
+    result = ExtractionResult(base_name="doc", document={}, degradations=[d])
+    assert result.degradations == [d]
+
+
+# ---------------------------------------------------------------------------
+# PipelineConfig.from_env
+# ---------------------------------------------------------------------------
+
+def test_pipeline_config_from_env_defaults_unchanged(monkeypatch):
+    monkeypatch.delenv("MULTIXTRACT_VISION_WORKERS", raising=False)
+    cfg = PipelineConfig.from_env()
+    assert cfg == PipelineConfig()
+
+
+def test_pipeline_config_from_env_int_override(monkeypatch):
+    monkeypatch.setenv("MULTIXTRACT_VISION_WORKERS", "12")
+    monkeypatch.setenv("MULTIXTRACT_CHUNK_TARGET_TOKENS", "800")
+    cfg = PipelineConfig.from_env()
+    assert cfg.vision_workers == 12
+    assert cfg.chunk_target_tokens == 800
+
+
+def test_pipeline_config_from_env_str_override(monkeypatch):
+    monkeypatch.setenv("MULTIXTRACT_IMAGES_SUBDIR", "blobs/images")
+    cfg = PipelineConfig.from_env()
+    assert cfg.images_subdir == "blobs/images"
+
+
+def test_pipeline_config_from_env_empty_var_ignored(monkeypatch):
+    monkeypatch.setenv("MULTIXTRACT_VISION_WORKERS", "")
+    cfg = PipelineConfig.from_env()
+    assert cfg.vision_workers == PipelineConfig().vision_workers
+
+
+def test_pipeline_config_from_env_malformed_int_ignored(monkeypatch):
+    monkeypatch.setenv("MULTIXTRACT_VISION_WORKERS", "not_a_number")
+    cfg = PipelineConfig.from_env()
+    assert cfg.vision_workers == PipelineConfig().vision_workers
+
+
+def test_pipeline_config_from_env_custom_prefix(monkeypatch):
+    monkeypatch.setenv("APP_VISION_WORKERS", "3")
+    cfg = PipelineConfig.from_env(prefix="APP_")
+    assert cfg.vision_workers == 3
 
 
 # ---------------------------------------------------------------------------
@@ -132,21 +181,26 @@ def test_run_vision_calls_analyze_for_each_image():
     img = _prepared_image()
     prepared = [img]
 
-    result = pipeline._run_vision(prepared)
+    results, errors = pipeline._run_vision(prepared)
 
-    assert "page_1_img_0" in result
-    assert result["page_1_img_0"].caption == "a chart"
+    assert "page_1_img_0" in results
+    assert results["page_1_img_0"].caption == "a chart"
+    assert errors == {}
     mock_vision.analyze.assert_called_once()
 
 
 def test_run_vision_returns_empty_when_no_vision():
     pipeline = Pipeline(vision=None)
-    assert pipeline._run_vision([_prepared_image()]) == {}
+    results, errors = pipeline._run_vision([_prepared_image()])
+    assert results == {}
+    assert errors == {}
 
 
 def test_run_vision_returns_empty_when_no_images():
     pipeline = Pipeline(vision=MagicMock())
-    assert pipeline._run_vision([]) == {}
+    results, errors = pipeline._run_vision([])
+    assert results == {}
+    assert errors == {}
 
 
 def test_run_vision_removes_image_bytes_after_analysis():
@@ -238,16 +292,17 @@ def test_embed_chunks_skips_when_all_already_embedded():
     mock_embedder.embed.assert_not_called()
 
 
-def test_run_vision_swallows_future_exception():
-    """If a vision future raises, the image is dropped from results (not re-raised)."""
+def test_run_vision_records_error_on_future_exception():
+    """If a vision future raises, the error is recorded in errors dict (not re-raised)."""
     mock_vision = MagicMock()
     mock_vision.analyze.side_effect = RuntimeError("GPU OOM")
     pipeline = Pipeline(vision=mock_vision, config=PipelineConfig(vision_workers=1))
     img = _prepared_image()
 
-    result = pipeline._run_vision([img])
-    # The image_id must NOT be in results — exception was swallowed
-    assert "page_1_img_0" not in result
+    results, errors = pipeline._run_vision([img])
+    assert "page_1_img_0" not in results
+    assert "page_1_img_0" in errors
+    assert "GPU OOM" in errors["page_1_img_0"]
 
 
 def test_embed_chunks_logs_on_count_mismatch():
@@ -295,6 +350,72 @@ def test_pipeline_full_run_with_vision_and_store():
     assert result.image_index[0]["caption"] == "test chart"
     assert mock_store.put_bytes.called  # image bytes stored
     assert mock_store.put_json.call_count == 3  # image_json, chunks_json, doc_json
+    assert result.degradations == []  # successful run → no degradations
+
+
+def test_pipeline_degradations_on_vision_failure():
+    """Vision exception → degradation recorded; pipeline continues."""
+    doc = _minimal_document()
+    img = _prepared_image()
+    mock_vision = MagicMock()
+    mock_vision.analyze.side_effect = RuntimeError("GPU OOM")
+    pipeline = Pipeline(
+        vision=mock_vision,
+        config=PipelineConfig(vision_workers=1),
+    )
+    with patch("multixtract.pipeline.extract_document", return_value=(doc, [img])):
+        result = pipeline.process("report.pdf")
+
+    assert len(result.degradations) == 1
+    d = result.degradations[0]
+    assert d["stage"] == "vision"
+    assert d["id"] == "page_1_img_0"
+    assert "GPU OOM" in d["error"]
+
+
+def test_pipeline_degradations_on_embed_image_failure():
+    """embedder returns None for image → embed_image degradation recorded."""
+    doc = _minimal_document()
+    img = _prepared_image()
+    mock_vision = MagicMock()
+    mock_vision.analyze.return_value = VisionResult(description="a chart")
+    mock_embedder = MagicMock()
+    mock_embedder.embed.return_value = [None]  # None for image embed
+    pipeline = Pipeline(
+        vision=mock_vision,
+        embedder=mock_embedder,
+        config=PipelineConfig(vision_workers=1),
+    )
+    with patch("multixtract.pipeline.extract_document", return_value=(doc, [img])):
+        result = pipeline.process("report.pdf")
+
+    image_degs = [d for d in result.degradations if d["stage"] == "embed_image"]
+    assert len(image_degs) == 1
+    assert image_degs[0]["id"] == "page_1_img_0"
+    assert image_degs[0]["error"] is None
+
+
+def test_pipeline_degradations_on_embed_chunk_failure():
+    """embedder returns None for chunk → embed_chunk degradation recorded."""
+    doc = _minimal_document()
+    mock_embedder = MagicMock()
+    mock_embedder.embed.return_value = [None]  # None for chunk embed
+    pipeline = Pipeline(embedder=mock_embedder)
+    with patch("multixtract.pipeline.extract_document", return_value=(doc, [])):
+        result = pipeline.process("report.pdf")
+
+    chunk_degs = [d for d in result.degradations if d["stage"] == "embed_chunk"]
+    assert len(chunk_degs) >= 1
+    assert chunk_degs[0]["error"] is None
+
+
+def test_pipeline_no_degradations_when_no_providers():
+    """No vision/embedder → degradations list is empty."""
+    doc = _minimal_document()
+    pipeline = Pipeline(vision=None, embedder=None)
+    with patch("multixtract.pipeline.extract_document", return_value=(doc, [])):
+        result = pipeline.process("report.pdf")
+    assert result.degradations == []
 
 
 # ---------------------------------------------------------------------------
@@ -408,7 +529,106 @@ def test_split_chunks_file_raises_without_store():
         pass
 
 
-def test_split_chunks_file_counts_deduped_image_chunks():
+# ---------------------------------------------------------------------------
+# Pipeline.process_batch — facade tests
+# ---------------------------------------------------------------------------
+
+def test_process_batch_single_file(tmp_path):
+    f = tmp_path / "doc.pdf"
+    f.write_bytes(b"%PDF")
+    mock_result = ExtractionResult(base_name="doc", document={"pgs": []}, chunks=[], image_index=[])
+    pipeline = Pipeline()
+    with patch.object(pipeline, "process", return_value=mock_result) as mock_process:
+        summary = pipeline.process_batch(str(f))
+    assert summary.succeeded == 1
+    assert summary.failed == 0
+    mock_process.assert_called_once()
+
+
+def test_process_batch_directory(tmp_path):
+    for i in range(3):
+        (tmp_path / f"doc{i}.pdf").write_bytes(b"%PDF")
+    mock_result = ExtractionResult(base_name="doc", document={"pgs": []}, chunks=[], image_index=[])
+    pipeline = Pipeline()
+    with patch.object(pipeline, "process", return_value=mock_result):
+        summary = pipeline.process_batch(str(tmp_path))
+    assert summary.succeeded == 3
+
+
+def test_process_batch_mixed_inputs(tmp_path):
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    (sub / "a.pdf").write_bytes(b"%PDF")
+    standalone = tmp_path / "b.pdf"
+    standalone.write_bytes(b"%PDF")
+    mock_result = ExtractionResult(base_name="doc", document={"pgs": []}, chunks=[], image_index=[])
+    pipeline = Pipeline()
+    with patch.object(pipeline, "process", return_value=mock_result):
+        summary = pipeline.process_batch(str(sub), str(standalone))
+    assert summary.succeeded == 2
+
+
+def test_process_batch_accepts_path_objects(tmp_path):
+    f = tmp_path / "doc.pdf"
+    f.write_bytes(b"%PDF")
+    mock_result = ExtractionResult(base_name="doc", document={"pgs": []}, chunks=[], image_index=[])
+    pipeline = Pipeline()
+    with patch.object(pipeline, "process", return_value=mock_result):
+        summary = pipeline.process_batch(f)  # Path object, not str
+    assert summary.succeeded == 1
+
+
+def test_process_batch_max_workers_forwarded(tmp_path):
+    """max_workers is forwarded to BatchProcessor; verify via observed concurrency."""
+    import threading
+    files = [tmp_path / f"d{i}.pdf" for i in range(6)]
+    for f in files:
+        f.write_bytes(b"%PDF")
+
+    peak = [0]
+    active = [0]
+    lock = threading.Lock()
+    ok = ExtractionResult(base_name="doc", document={"pgs": []}, chunks=[], image_index=[])
+
+    def slow(path, **kw):
+        with lock:
+            active[0] += 1
+            peak[0] = max(peak[0], active[0])
+        import time; time.sleep(0.02)
+        with lock:
+            active[0] -= 1
+        return ok
+
+    pipeline = Pipeline()
+    with patch.object(pipeline, "process", side_effect=slow):
+        pipeline.process_batch(*[str(f) for f in files], max_workers=2)
+    assert peak[0] <= 2
+
+
+def test_process_batch_failure_isolation(tmp_path):
+    files = [tmp_path / f"doc{i}.pdf" for i in range(3)]
+    for f in files:
+        f.write_bytes(b"%PDF")
+    ok = ExtractionResult(base_name="doc", document={"pgs": []}, chunks=[], image_index=[])
+    pipeline = Pipeline()
+    call_count = 0
+
+    def side_effect(path, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 2:
+            raise RuntimeError("corrupt")
+        return ok
+
+    with patch.object(pipeline, "process", side_effect=side_effect):
+        summary = pipeline.process_batch(*[str(f) for f in files], max_workers=1)
+    assert summary.succeeded == 2
+    assert summary.failed == 1
+
+
+def test_split_chunks_file_cleans_echoed_image_content():
+    # build_index_document defensively deduplicates image content so that
+    # _chunks.json files from external or older pipelines are also normalised.
     echo_content = (
         "Caption: A chart\n\n"
         "OCR Text: Q1 Q2\n\n"
@@ -441,6 +661,6 @@ def test_split_chunks_file_counts_deduped_image_chunks():
     pipeline = Pipeline(store=mock_store)
     stats = pipeline.split_chunks_file(chunks_data, timestamp="2026-08-14T00:00:00Z")
 
-    assert stats.deduped == 1
+    assert stats.created == 1
     doc = list(written.values())[0]
     assert len(doc["content"]) < len(echo_content)

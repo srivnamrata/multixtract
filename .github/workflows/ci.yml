@@ -52,7 +52,7 @@ jobs:
       # Main: enforce 90% with all format extras installed.
       - name: Test with coverage (PR — no floor)
         if: github.event_name == 'pull_request'
-        run: pytest --cov=multixtract --cov-report=term-missing
+        run: pytest --ignore=tests/integration --cov=multixtract --cov-report=term-missing
 
       - name: Test with coverage (main — enforce 90%)
         if: github.event_name != 'pull_request'
@@ -60,7 +60,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: github.event_name != 'pull_request' && matrix.python-version == '3.11'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           files: coverage.xml
           token: ${{ secrets.CODECOV_TOKEN }}

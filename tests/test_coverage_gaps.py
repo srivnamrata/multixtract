@@ -776,25 +776,15 @@ def test_smolvlm_analyze_never_raises_on_failure():
 
 
 # ---------------------------------------------------------------------------
-# providers/openai.py — _is_permanent ImportError branch  line 23-24
-# ---------------------------------------------------------------------------
-
-from multixtract.providers.openai import _is_permanent  # noqa: E402
-
-
-def test_is_permanent_returns_false_when_openai_not_installed(monkeypatch):
-    monkeypatch.setitem(sys.modules, "openai", None)
-    assert _is_permanent(RuntimeError("any error")) is False
-
-
-# ---------------------------------------------------------------------------
-# providers/openai.py — analyze and embed failure paths  lines 56-57, 100-101
+# providers/openai.py — analyze and embed failure paths
 # ---------------------------------------------------------------------------
 
 from multixtract.providers.openai import OpenAIEmbedder, OpenAIVisionModel  # noqa: E402
 
 
-def test_openai_vision_analyze_returns_empty_on_network_failure():
+def test_openai_vision_analyze_raises_on_failure():
+    import pytest
+
     class FailClient:
         class chat:
             class completions:
@@ -802,8 +792,9 @@ def test_openai_vision_analyze_returns_empty_on_network_failure():
                 def create(**kw):
                     raise RuntimeError("network error")
 
-    result = OpenAIVisionModel(client=FailClient()).analyze(b"\x89PNG\r\n\x1a\n")
-    assert result.caption == ""
+    # Pass explicit dimensions so to_data_url takes the fast path (no PIL decode).
+    with pytest.raises(RuntimeError, match="network error"):
+        OpenAIVisionModel(client=FailClient()).analyze(b"fake", ext="png", width=10, height=10)
 
 
 def test_openai_embedder_returns_none_on_network_failure():
@@ -824,7 +815,7 @@ def test_openai_embedder_returns_none_on_network_failure():
 def test_azure_embedder_with_ad_token_provider(monkeypatch):
     from multixtract.providers.azure import AzureOpenAIEmbedder
 
-    def fake_client(endpoint, api_key, api_version, azure_ad_token_provider=None):
+    def fake_client(endpoint, api_key, api_version, azure_ad_token_provider=None, max_retries=2):
         return SimpleNamespace(
             embeddings=SimpleNamespace(
                 create=lambda **kw: SimpleNamespace(

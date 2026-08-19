@@ -33,11 +33,50 @@ _TOKENS_PER_WORD = 1.3
 
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\n{2,}|\n(?=[A-Z0-9])")
 
+# tiktoken encoder — loaded once on first call, None when tiktoken is not installed.
+_tiktoken_enc = None
+_tiktoken_checked = False
+
+
+def _get_tiktoken_enc():
+    global _tiktoken_enc, _tiktoken_checked
+    if _tiktoken_checked:
+        return _tiktoken_enc
+    _tiktoken_checked = True
+    try:
+        import tiktoken
+        # cl100k_base covers GPT-4 / text-embedding-3-* — the models multixtract targets.
+        _tiktoken_enc = tiktoken.get_encoding("cl100k_base")
+    except Exception:
+        _tiktoken_enc = None
+    return _tiktoken_enc
+
 
 def estimate_tokens(text: str) -> int:
+    """Fast word-count heuristic — used in the splitting hot path."""
     if not text:
         return 0
     return max(1, int(len(text.split()) * _TOKENS_PER_WORD))
+
+
+def count_tokens(text: str) -> int:
+    """Accurate token count for a final chunk.
+
+    Uses tiktoken (``cl100k_base`` encoding, covering GPT-4 /
+    ``text-embedding-3-*``) when the ``multixtract[tiktoken]`` extra is
+    installed; falls back to the word-count heuristic otherwise.
+
+    This is intentionally **not** used inside the splitting loop —
+    tiktoken encodes every character and is ~10× slower than the heuristic,
+    so using it per-sentence would be prohibitively expensive on long documents.
+    It is called once per *final* chunk to stamp an accurate ``token_cnt``.
+    """
+    if not text:
+        return 0
+    enc = _get_tiktoken_enc()
+    if enc is not None:
+        return len(enc.encode(text))
+    return estimate_tokens(text)
 
 
 def safe_index_key(s: str) -> str:
@@ -184,6 +223,10 @@ def build_image_content(img_meta: Dict[str, Any], page_context: str = "") -> str
     ``page_context`` is a pre-formatted prefix string (e.g. ``"Slide: Title"``
     or ``"Sheet: Name"``) emitted as the first line when provided, so every
     image chunk carries its source context for RAG retrieval.
+
+    The echo-deduplication (GPT-4o occasionally mirrors the structured fields
+    inside the description block) is applied here so all callers always receive
+    clean content without needing to wrap the result themselves.
     """
     parts = []
     if page_context:
@@ -196,7 +239,7 @@ def build_image_content(img_meta: Dict[str, Any], page_context: str = "") -> str
     description = img_meta.get("description")
     if description:
         parts.append(f"Description: {description}")
-    return "\n\n".join(parts)
+    return _deduplicate_image_content("\n\n".join(parts))
 
 
 def build_index_document(
@@ -236,6 +279,9 @@ def build_index_document(
     )
 
     content = chunk.get("content", "")
+    # Idempotent dedup: content from chunk_document is already clean (dedup runs
+    # in build_image_content); content from external/older _chunks.json files may
+    # not be — this pass normalises both without double-processing.
     if chunk_type == "image":
         content = _deduplicate_image_content(content)
 
@@ -283,9 +329,10 @@ def _splits_from_buffer(
     for content in split_text_into_chunks(
         "\n\n".join(text_buffer), target_tokens, overlap_tokens
     ):
-        token_cnt = estimate_tokens(content)
-        if token_cnt >= CHUNK_MIN_TOKENS:
-            result.append((content, token_cnt))
+        # estimate_tokens in the guard — keeps the hot path fast.
+        # count_tokens for the stored value — accurate when tiktoken is installed.
+        if estimate_tokens(content) >= CHUNK_MIN_TOKENS:
+            result.append((content, count_tokens(content)))
     return result
 
 
@@ -404,7 +451,7 @@ def chunk_document(
                             "pg_num":     page_num,
                             "chunk_idx":  running_tbl_idx,
                             "content":    content,
-                            "token_cnt":  estimate_tokens(content),
+                            "token_cnt":  count_tokens(content),
                             "metadata": {
                                 "num_rows": len(payload),
                                 "num_col":  len(payload[0]) if payload else 0,
@@ -430,7 +477,7 @@ def chunk_document(
             for split_index, (split_content, token_cnt) in enumerate(text_splits):
                 content = f"{context}\n\n{split_content}" if context else split_content
                 if context:
-                    token_cnt = estimate_tokens(content)
+                    token_cnt = count_tokens(content)
                 chunks.append({
                     "chunk_id":   safe_index_key(f"{base_name}__p{page_num}_text_{split_index}"),
                     "chunk_type": "text",
@@ -453,7 +500,7 @@ def chunk_document(
                     "pg_num":     page_num,
                     "chunk_idx":  table_idx,
                     "content":    content,
-                    "token_cnt":  estimate_tokens(content),
+                    "token_cnt":  count_tokens(content),
                     "metadata": {
                         "num_rows": len(table),
                         "num_col":  len(table[0]) if table else 0,
@@ -464,9 +511,7 @@ def chunk_document(
         # ── Image chunks (both paths) ─────────────────────────────────────────
         # `context` is computed once per page above and reused here for images.
         for img_meta in page.get("imgs") or []:
-            img_content = _deduplicate_image_content(
-                build_image_content(img_meta, page_context=context)
-            )
+            img_content = build_image_content(img_meta, page_context=context)
             if not img_content:
                 continue
             img_index = img_meta.get("img_idx", 0)
@@ -477,7 +522,7 @@ def chunk_document(
                 "pg_num":     page_num,
                 "chunk_idx":  img_index,
                 "content":    img_content,
-                "token_cnt":  estimate_tokens(img_content),
+                "token_cnt":  count_tokens(img_content),
                 "metadata":   {"img_id": image_id, "img_path": img_meta.get("img_path", "")},
                 "embedding":  image_embeddings.get(image_id),
             })

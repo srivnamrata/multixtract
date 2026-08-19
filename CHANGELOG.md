@@ -4,6 +4,60 @@ All notable changes to this project will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] — 2026-08-19
+
+### Added
+
+**Directory & batch support**
+- `Pipeline.process_batch(*inputs, max_workers=4)` — process one or more files and/or directories in a single call; thin facade over `BatchProcessor` with failure isolation and resume support
+- `BatchProcessor` — concurrent document processor; accepts `FileSource`, `DirectorySource`, custom `DocumentSource`, or a raw `Iterator[Path]`; entry points: `process_inputs()`, `process_source()`, `process_paths()`
+- `BatchConfig(max_workers, skip_if_exists, split_chunks, on_progress)` — tuning knobs for `BatchProcessor`
+- `BatchResult(succeeded, failed, skipped, failures, total)` — aggregate outcome of a batch run
+- `DocumentFailure(path, error)` — per-document failure record
+- `InputResolver` / `FileSource` / `DirectorySource` / `discover()` — lazy recursive discovery of supported documents from mixed file/directory inputs
+- `SUPPORTED_EXTENSIONS` — frozenset of all file extensions the default registry handles
+- CLI extended to accept directories and mixed inputs (`multixtract report.pdf ./docs ./more`)
+- CLI `--workers N` flag — max concurrent documents (default: 4)
+
+**Formatters (`multixtract.formatters`)**
+- `AzureAISearchFormatter.from_result(result, timestamp, skip_empty)` — converts an in-process `ExtractionResult` to a list of flat Azure AI Search documents
+- `AzureAISearchFormatter.from_chunks_file(chunks_data, timestamp, skip_empty)` — same, but from a `_chunks.json` dict (post-processing / offline path)
+- `AzureAISearchFormatter.index_schema(index_name, vector_dim)` — returns a fully configured `azure-search-documents` `SearchIndex` object with hybrid (keyword + vector) fields; deferred import so `azure-search-documents` is not required unless this method is called
+
+**Structured error tracking**
+- `ExtractionResult.degradations: list[dict]` — partial failures that did not abort the run; each entry: `{"stage": "vision"|"embed_image"|"embed_chunk", "id": str, "error": str|None}`; populated by `Pipeline.process()` from three sources: vision exceptions, `None` image embeddings, `None` chunk embeddings
+- `VisionModel.analyze` protocol contract updated: providers now **raise on failure** (previously "must not raise") — the pipeline coordinator catches and records errors in `degradations`
+
+**Progress callbacks**
+- `BatchConfig.on_progress: Callable[[Path, ExtractionResult | Exception], None] | None` — called after every document completes (succeeded, skipped, or failed); receives the `Path` and the result or exception; callback exceptions are caught and logged as warnings so a crashing callback never aborts a batch
+
+**`PipelineConfig.from_env(prefix="MULTIXTRACT_")`**
+- Classmethod that reads `MULTIXTRACT_<FIELD_NAME_UPPER>` environment variables and returns a `PipelineConfig` with those values applied; integer fields are coerced; malformed or absent vars fall back to dataclass defaults; prefix is configurable
+
+**Token counting**
+- `count_tokens(text) -> int` — tiktoken-based token count (`cl100k_base`) when `tiktoken` is installed; falls back to the fast heuristic; used for all final `token_cnt` stamps on chunks
+- `estimate_tokens(text) -> int` — fast heuristic (unchanged); retained for the splitting hot path
+- New optional extra `[tiktoken]`: `pip install "multixtract[tiktoken]"`
+- Both exported from top-level `multixtract`
+
+**Reliability**
+- `OpenAIVisionModel(max_retries=2)` and `OpenAIEmbedder(max_retries=2)` — `max_retries` forwarded directly to the OpenAI SDK client constructor; SDK handles `Retry-After`/`retry-after-ms` headers, exponential backoff, and ±25% jitter at the HTTP layer
+- `AzureOpenAIVisionModel(max_retries=2)` and `AzureOpenAIEmbedder(max_retries=2)` — same, via `AzureOpenAI(max_retries=max_retries)`
+
+**Content deduplication**
+- Image chunks: `_deduplicate_image_content` now applied inside `build_image_content` (creation time) so stored chunks are always clean; `build_index_document` retains a defensive pass for external/older `_chunks.json` files
+
+### Changed
+
+- **OpenAI SDK version constraint**: `openai>=1.57.0,<4.0` (was `<3.0`) — aligns with current OpenAI model releases
+- **`VisionModel.analyze` protocol**: raises on failure instead of returning an empty `VisionResult`; hand-rolled `try/except` removed from `OpenAIVisionModel.analyze`
+- **Retry handling**: removed hand-rolled `_retry` / `_is_permanent` from OpenAI providers; SDK retry is strictly more correct (correct 4xx/5xx discrimination, header-aware sleep, no double-retry compounding)
+- **`ExtractionResult`**: new `degradations` field (default `[]`) — backward compatible; existing code constructing `ExtractionResult` positionally is unaffected
+
+### Fixed
+
+- `examples/azure_ai_search/ingest.py`: field names corrected (`id`/`content_vector` — were `chunk_id`/`embedding`); spurious `file_path=`/`file_name=` kwargs removed from `Pipeline.process()` call
+
 ## [0.1.2] — 2026-08-15
 
 ### Added

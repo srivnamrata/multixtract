@@ -33,6 +33,7 @@ def _azure_client(
     api_key: Optional[str],
     api_version: str,
     azure_ad_token_provider: Optional[Callable[[], str]] = None,
+    max_retries: int = 2,
 ):
     from openai import AzureOpenAI  # keeps openai optional for core users
     return AzureOpenAI(
@@ -40,6 +41,7 @@ def _azure_client(
         api_key=api_key,
         api_version=api_version,
         azure_ad_token_provider=azure_ad_token_provider,
+        max_retries=max_retries,
     )
 
 
@@ -48,6 +50,10 @@ class AzureOpenAIVisionModel(OpenAIVisionModel):
 
     Supports both API-key and passwordless (Azure AD / managed identity) auth.
     Pass ``azure_ad_token_provider`` for passwordless; omit ``api_key`` in that case.
+
+    Args:
+        max_retries: Retries on transient errors — forwarded to ``AzureOpenAI``
+                     client (default: 2).  See :class:`~multixtract.providers.openai.OpenAIVisionModel`.
     """
 
     def __init__(
@@ -57,11 +63,14 @@ class AzureOpenAIVisionModel(OpenAIVisionModel):
         deployment: str = "gpt-4o",
         api_version: str = "2024-10-21",
         azure_ad_token_provider: Optional[Callable[[], str]] = None,
+        max_retries: int = 2,
         **kwargs,
     ) -> None:
         super().__init__(
             model=deployment,
-            client=_azure_client(endpoint, api_key, api_version, azure_ad_token_provider),
+            client=_azure_client(
+                endpoint, api_key, api_version, azure_ad_token_provider, max_retries
+            ),
             **kwargs,
         )
 
@@ -71,6 +80,10 @@ class AzureOpenAIEmbedder(OpenAIEmbedder):
 
     Supports both API-key and passwordless (Azure AD / managed identity) auth.
     Pass ``azure_ad_token_provider`` for passwordless; omit ``api_key`` in that case.
+
+    Args:
+        max_retries: Retries on transient errors — forwarded to ``AzureOpenAI``
+                     client (default: 2).  See :class:`~multixtract.providers.openai.OpenAIEmbedder`.
     """
 
     def __init__(
@@ -81,11 +94,14 @@ class AzureOpenAIEmbedder(OpenAIEmbedder):
         api_version: str = "2024-10-21",
         dim: int = 1024,
         azure_ad_token_provider: Optional[Callable[[], str]] = None,
+        max_retries: int = 2,
         **kwargs,
     ) -> None:
         super().__init__(
             model=deployment,
             dim=dim,
-            client=_azure_client(endpoint, api_key, api_version, azure_ad_token_provider),
+            client=_azure_client(
+                endpoint, api_key, api_version, azure_ad_token_provider, max_retries
+            ),
             **kwargs,
         )

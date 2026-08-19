@@ -9,8 +9,10 @@ no explicit subclassing required.
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Protocol, Tuple, runtime_checkable
+from pathlib import Path
+from typing import Any, Dict, Iterator, List, Optional, Protocol, Tuple, runtime_checkable
 
 
 @dataclass
@@ -41,8 +43,12 @@ class VisionModel(Protocol):
         width: int = 0,
         height: int = 0,
     ) -> VisionResult:
-        """Return a :class:`VisionResult` for one image. Must not raise on
-        model errors — return an empty ``VisionResult`` instead."""
+        """Return a :class:`VisionResult` for one image.
+
+        Raise on failure — the pipeline coordinator catches exceptions, records
+        them in :attr:`~multixtract.pipeline.ExtractionResult.degradations`, and
+        continues processing the remaining images.
+        """
         ...
 
 
@@ -127,9 +133,36 @@ class DocumentExtractor(Protocol):
         ...
 
 
+@runtime_checkable
+class DocumentSource(Protocol):
+    """Yields a stream of document paths for the pipeline to process.
+
+    Implement this protocol to plug in any document source:
+    - :class:`~multixtract.discovery.FileSource`   — single file
+    - :class:`~multixtract.discovery.DirectorySource` — recursive directory walk
+    - Future: ``URLSource``, ``S3Source``, ``DatabaseSource``, …
+
+    The pipeline never sees where paths came from; it receives a uniform
+    ``Iterator[Path]`` regardless of source type.
+    """
+
+    def iter_paths(self) -> Iterator[Path]:
+        """Yield absolute, resolved :class:`~pathlib.Path` objects one at a time.
+
+        Implementations must be lazy (generator-based) so callers can start
+        processing the first document before the full tree is enumerated.
+        """
+        ...
+
+
 @dataclass
 class PipelineConfig:
-    """Tunable knobs shared across the pipeline."""
+    """Tunable knobs shared across the pipeline.
+
+    Every field can be overridden by an environment variable named
+    ``MULTIXTRACT_<FIELD_NAME_UPPER>`` (e.g. ``MULTIXTRACT_VISION_WORKERS=4``).
+    Use :meth:`from_env` to construct an instance with environment overrides applied.
+    """
 
     # Image filtering
     min_image_size: int = 100
@@ -150,3 +183,40 @@ class PipelineConfig:
     image_json_subdir: str = "image_jsons"
     chunks_subdir: str = "chunks"
     individual_chunks_subdir: str = "individual_chunks"
+
+    @classmethod
+    def from_env(cls, prefix: str = "MULTIXTRACT_") -> "PipelineConfig":
+        """Build a :class:`PipelineConfig` with values overridden by environment variables.
+
+        Each field is read from ``<prefix><FIELD_NAME_UPPER>``.  Integer fields
+        are coerced; string fields are used as-is.  Variables that are absent or
+        empty are ignored (the dataclass default wins).
+
+        Example env vars::
+
+            MULTIXTRACT_VISION_WORKERS=4
+            MULTIXTRACT_CHUNK_TARGET_TOKENS=800
+            MULTIXTRACT_IMAGES_SUBDIR=blobs/images
+
+        Args:
+            prefix: Variable name prefix (default ``"MULTIXTRACT_"``).
+
+        Returns:
+            A :class:`PipelineConfig` with env overrides applied.
+        """
+        import dataclasses
+        defaults = cls()
+        kwargs: Dict[str, Any] = {}
+        for f in dataclasses.fields(defaults):
+            env_key = f"{prefix}{f.name.upper()}"
+            raw = os.environ.get(env_key, "").strip()
+            if not raw:
+                continue
+            if f.type in ("int", int) or isinstance(getattr(defaults, f.name), int):
+                try:
+                    kwargs[f.name] = int(raw)
+                except ValueError:
+                    pass  # ignore malformed values; default wins
+            else:
+                kwargs[f.name] = raw
+        return cls(**kwargs)
