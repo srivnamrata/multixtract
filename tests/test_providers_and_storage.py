@@ -317,6 +317,8 @@ def test_cli_missing_file_exits_with_error(capsys):
 
 def test_cli_extraction_only_success(tmp_path, capsys):
     """CLI runs extraction-only (no openai key) on a mocked pipeline."""
+    fake = tmp_path / "doc.pdf"
+    fake.write_bytes(b"%PDF")
     mock_result = SimpleNamespace(
         base_name="test",
         document={"pgs": [{"pg_num": 1, "txt": "hello", "tables": [], "imgs": []}]},
@@ -325,52 +327,52 @@ def test_cli_extraction_only_success(tmp_path, capsys):
         filter_stats={"kept": 0},
     )
 
-    # Pipeline is imported inside main() via `from .pipeline import Pipeline`,
-    # so patch the class in its source module. Also patch os.path.isfile so the
-    # CLI's pre-flight file-existence check passes for the fake path.
-    with patch("sys.argv", ["multixtract", "doc.pdf", "-o", str(tmp_path)]):
+    with patch("sys.argv", ["multixtract", str(fake), "-o", str(tmp_path)]):
         with patch.dict(os.environ, {"OPENAI_API_KEY": ""}, clear=False):
-            with patch("multixtract.cli.os.path.isfile", return_value=True):
-                with patch("multixtract.pipeline.Pipeline") as MockPipeline:
-                    MockPipeline.return_value.process.return_value = mock_result
-                    with patch("multixtract.providers.storage.LocalDiskStore"):
-                        main()
+            with patch("multixtract.pipeline.Pipeline") as MockPipeline:
+                MockPipeline.return_value.process.return_value = mock_result
+                with patch("multixtract.providers.storage.LocalDiskStore"):
+                    main()
 
     captured = capsys.readouterr()
     assert "test" in captured.out
     assert "1 chunks" in captured.out
 
 
-def test_cli_value_error_exits_cleanly(capsys):
+def test_cli_value_error_exits_cleanly(tmp_path, capsys):
     """ValueError from pipeline.process() must print a clean error, not a traceback."""
-    with patch("sys.argv", ["multixtract", "doc.pdf"]):
+    fake = tmp_path / "doc.pdf"
+    fake.write_bytes(b"%PDF")
+    with patch("sys.argv", ["multixtract", str(fake)]):
         with patch.dict(os.environ, {"OPENAI_API_KEY": ""}, clear=False):
-            with patch("multixtract.cli.os.path.isfile", return_value=True):
-                with patch("multixtract.pipeline.Pipeline") as MockPipeline:
-                    MockPipeline.return_value.process.side_effect = ValueError("unsupported format")
-                    with patch("multixtract.providers.storage.LocalDiskStore"):
-                        with pytest.raises(SystemExit) as exc_info:
-                            main()
+            with patch("multixtract.pipeline.Pipeline") as MockPipeline:
+                MockPipeline.return_value.process.side_effect = ValueError("unsupported format")
+                with patch("multixtract.providers.storage.LocalDiskStore"):
+                    with pytest.raises(SystemExit) as exc_info:
+                        main()
     assert exc_info.value.code == 1
     captured = capsys.readouterr()
     assert "error" in (captured.err + captured.out).lower()
 
 
-def test_cli_generic_exception_exits_cleanly(capsys):
+def test_cli_generic_exception_exits_cleanly(tmp_path, capsys):
     """Unexpected exceptions must print a clean error and exit 1 (non-verbose)."""
-    with patch("sys.argv", ["multixtract", "doc.pdf"]):
+    fake = tmp_path / "doc.pdf"
+    fake.write_bytes(b"%PDF")
+    with patch("sys.argv", ["multixtract", str(fake)]):
         with patch.dict(os.environ, {"OPENAI_API_KEY": ""}, clear=False):
-            with patch("multixtract.cli.os.path.isfile", return_value=True):
-                with patch("multixtract.pipeline.Pipeline") as MockPipeline:
-                    MockPipeline.return_value.process.side_effect = RuntimeError("boom")
-                    with patch("multixtract.providers.storage.LocalDiskStore"):
-                        with pytest.raises(SystemExit) as exc_info:
-                            main()
+            with patch("multixtract.pipeline.Pipeline") as MockPipeline:
+                MockPipeline.return_value.process.side_effect = RuntimeError("boom")
+                with patch("multixtract.providers.storage.LocalDiskStore"):
+                    with pytest.raises(SystemExit) as exc_info:
+                        main()
     assert exc_info.value.code == 1
 
 
 def test_cli_prints_filter_stats(tmp_path, capsys):
     """filter_stats must be printed when non-empty."""
+    fake = tmp_path / "doc.pdf"
+    fake.write_bytes(b"%PDF")
     mock_result = SimpleNamespace(
         base_name="doc",
         document={"pgs": []},
@@ -378,13 +380,12 @@ def test_cli_prints_filter_stats(tmp_path, capsys):
         image_index=[],
         filter_stats={"kept": 3, "solid_color": 1},
     )
-    with patch("sys.argv", ["multixtract", "doc.pdf", "-o", str(tmp_path)]):
+    with patch("sys.argv", ["multixtract", str(fake), "-o", str(tmp_path)]):
         with patch.dict(os.environ, {"OPENAI_API_KEY": ""}, clear=False):
-            with patch("multixtract.cli.os.path.isfile", return_value=True):
-                with patch("multixtract.pipeline.Pipeline") as MockPipeline:
-                    MockPipeline.return_value.process.return_value = mock_result
-                    with patch("multixtract.providers.storage.LocalDiskStore"):
-                        main()
+            with patch("multixtract.pipeline.Pipeline") as MockPipeline:
+                MockPipeline.return_value.process.return_value = mock_result
+                with patch("multixtract.providers.storage.LocalDiskStore"):
+                    main()
     captured = capsys.readouterr()
     assert "filter stats" in captured.out.lower()
 
