@@ -233,8 +233,9 @@ class TestIndexSchema:
         assert schema.name == "my-index"
 
     def test_index_schema_has_required_fields(self):
-        import importlib.util
-        if importlib.util.find_spec("azure.search.documents") is None:
+        try:
+            from azure.search.documents.indexes.models import SearchIndex  # noqa: F401
+        except ImportError:
             pytest.skip("azure-search-documents not installed")
 
         schema = AzureAISearchFormatter.index_schema("my-index", vector_dim=768)
@@ -252,8 +253,9 @@ class TestIndexSchema:
                 AzureAISearchFormatter.index_schema("my-index")
 
     def test_vector_dim_forwarded(self):
-        import importlib.util
-        if importlib.util.find_spec("azure.search.documents") is None:
+        try:
+            from azure.search.documents.indexes.models import SearchIndex  # noqa: F401
+        except ImportError:
             pytest.skip("azure-search-documents not installed")
 
         schema = AzureAISearchFormatter.index_schema("my-index", vector_dim=3072)

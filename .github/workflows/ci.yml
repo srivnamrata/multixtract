@@ -32,7 +32,7 @@ jobs:
 
       - name: Install dependencies (main — core + dev + all format extras)
         if: github.event_name != 'pull_request'
-        run: pip install -e ".[dev,pdf,docx,pptx,xlsx,epub,html,rtf]" pytest-cov
+        run: pip install -e ".[dev,pdf,docx,pptx,xlsx,epub,html,rtf,openai,azure]" pytest-cov
 
       - name: Lint
         run: ruff check src tests
@@ -84,7 +84,7 @@ jobs:
           cache: "pip"
 
       - name: Install package + core extras
-        run: pip install -e ".[dev,pdf,docx,pptx,xlsx]" pytest
+        run: pip install -e ".[dev,pdf,docx,pptx,xlsx,openai,azure]" pytest
 
       - name: Run tests
         run: pytest --tb=short -q
