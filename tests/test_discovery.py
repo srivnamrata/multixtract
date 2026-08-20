@@ -1,7 +1,6 @@
 """Unit tests for multixtract.discovery — InputResolver, FileSource, DirectorySource."""
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
@@ -13,7 +12,6 @@ from multixtract.discovery import (
     InputResolver,
     discover,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

@@ -76,7 +76,9 @@ class FileSource:
         supported_extensions: Optional[FrozenSet[str]] = None,
     ) -> None:
         self._path = path.resolve()
-        self._supported = supported_extensions if supported_extensions is not None else SUPPORTED_EXTENSIONS
+        self._supported = (
+            supported_extensions if supported_extensions is not None else SUPPORTED_EXTENSIONS
+        )
 
     def iter_paths(self) -> Iterator[Path]:
         ext = self._path.suffix.lower()
@@ -103,7 +105,9 @@ class DirectorySource:
         supported_extensions: Optional[FrozenSet[str]] = None,
     ) -> None:
         self._root = root.resolve()
-        self._supported = supported_extensions if supported_extensions is not None else SUPPORTED_EXTENSIONS
+        self._supported = (
+            supported_extensions if supported_extensions is not None else SUPPORTED_EXTENSIONS
+        )
 
     def iter_paths(self) -> Iterator[Path]:
         if not self._root.is_dir():
@@ -145,7 +149,9 @@ class InputResolver:
         self,
         supported_extensions: Optional[FrozenSet[str]] = None,
     ) -> None:
-        self._supported = supported_extensions if supported_extensions is not None else SUPPORTED_EXTENSIONS
+        self._supported = (
+            supported_extensions if supported_extensions is not None else SUPPORTED_EXTENSIONS
+        )
 
     # ------------------------------------------------------------------
 
@@ -186,7 +192,11 @@ class InputResolver:
 # Convenience helper used by the CLI
 # ---------------------------------------------------------------------------
 
-def discover(inputs: Iterable[str], *, supported_extensions: Optional[FrozenSet[str]] = None) -> Iterator[Path]:
+def discover(
+    inputs: Iterable[str],
+    *,
+    supported_extensions: Optional[FrozenSet[str]] = None,
+) -> Iterator[Path]:
     """One-liner helper wrapping :class:`InputResolver`.
 
     Example::

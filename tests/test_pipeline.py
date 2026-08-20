@@ -594,7 +594,8 @@ def test_process_batch_max_workers_forwarded(tmp_path):
         with lock:
             active[0] += 1
             peak[0] = max(peak[0], active[0])
-        import time; time.sleep(0.02)
+        import time
+        time.sleep(0.02)
         with lock:
             active[0] -= 1
         return ok

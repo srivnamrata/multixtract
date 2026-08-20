@@ -635,6 +635,7 @@ def test_split_chunks_file_write_failures_counted():
 
 def test_cli_exits_on_missing_file(tmp_path, monkeypatch, capsys):
     import multixtract.cli as cli
+    monkeypatch.setenv("OPENAI_API_KEY", "")
     monkeypatch.setattr("sys.argv", ["multixtract", str(tmp_path / "nonexistent.pdf")])
     with pytest.raises(SystemExit) as exc:
         cli.main()
@@ -644,6 +645,7 @@ def test_cli_exits_on_missing_file(tmp_path, monkeypatch, capsys):
 
 def test_cli_exits_on_unsupported_format(tmp_path, monkeypatch, capsys):
     import multixtract.cli as cli
+    monkeypatch.setenv("OPENAI_API_KEY", "")
     fake = tmp_path / "file.xyz"
     fake.write_text("data")
     monkeypatch.setattr("sys.argv", ["multixtract", str(fake)])
@@ -659,6 +661,7 @@ def test_cli_verbose_flag_reraises_exception(tmp_path, monkeypatch):
 
     fake = tmp_path / "file.pdf"
     fake.write_text("not a pdf")
+    monkeypatch.setenv("OPENAI_API_KEY", "")
     monkeypatch.setattr("sys.argv", ["multixtract", str(fake), "--verbose"])
 
     class BoomPipeline:

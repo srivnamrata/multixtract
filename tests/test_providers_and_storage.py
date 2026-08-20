@@ -13,6 +13,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+pytest.importorskip("openai", reason="openai extra not installed")
+
 from multixtract.cli import main
 from multixtract.interfaces import VisionResult
 from multixtract.providers.openai import OpenAIEmbedder, OpenAIVisionModel

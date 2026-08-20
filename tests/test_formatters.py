@@ -1,13 +1,12 @@
 """Unit tests for multixtract.formatters.AzureAISearchFormatter."""
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from multixtract.formatters import AzureAISearchFormatter
 from multixtract.pipeline import ExtractionResult
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -234,9 +233,8 @@ class TestIndexSchema:
         assert schema.name == "my-index"
 
     def test_index_schema_has_required_fields(self):
-        try:
-            from azure.search.documents.indexes.models import SearchIndex
-        except ImportError:
+        import importlib.util
+        if importlib.util.find_spec("azure.search.documents") is None:
             pytest.skip("azure-search-documents not installed")
 
         schema = AzureAISearchFormatter.index_schema("my-index", vector_dim=768)
@@ -254,9 +252,8 @@ class TestIndexSchema:
                 AzureAISearchFormatter.index_schema("my-index")
 
     def test_vector_dim_forwarded(self):
-        try:
-            from azure.search.documents.indexes.models import SearchIndex
-        except ImportError:
+        import importlib.util
+        if importlib.util.find_spec("azure.search.documents") is None:
             pytest.skip("azure-search-documents not installed")
 
         schema = AzureAISearchFormatter.index_schema("my-index", vector_dim=3072)

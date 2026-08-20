@@ -91,7 +91,9 @@ def test_azure_providers_monkeypatched(monkeypatch):
     def _embed_response(**kwargs):
         return SimpleNamespace(data=[SimpleNamespace(embedding=[0.3, 0.4])])
 
-    def fake_azure_client(endpoint, api_key, api_version, azure_ad_token_provider=None, max_retries=2):
+    def fake_azure_client(
+        endpoint, api_key, api_version, azure_ad_token_provider=None, max_retries=2
+    ):
         return SimpleNamespace(
             chat=SimpleNamespace(
                 completions=SimpleNamespace(create=_vision_response)

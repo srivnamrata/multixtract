@@ -23,7 +23,6 @@ from .discovery import (
     discover,
 )
 from .extraction import extract_document
-from .formatters import AzureAISearchFormatter
 from .extractors import (
     ExtractorRegistry,
     default_registry,
@@ -31,6 +30,7 @@ from .extractors import (
     register_extractor,
 )
 from .filters import ImageFilterPipeline
+from .formatters import AzureAISearchFormatter
 from .interfaces import (
     BlobStore,
     DocumentExtractor,

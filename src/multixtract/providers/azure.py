@@ -53,7 +53,8 @@ class AzureOpenAIVisionModel(OpenAIVisionModel):
 
     Args:
         max_retries: Retries on transient errors — forwarded to ``AzureOpenAI``
-                     client (default: 2).  See :class:`~multixtract.providers.openai.OpenAIVisionModel`.
+                     client (default: 2).
+                     See :class:`~multixtract.providers.openai.OpenAIVisionModel`.
     """
 
     def __init__(
@@ -83,7 +84,8 @@ class AzureOpenAIEmbedder(OpenAIEmbedder):
 
     Args:
         max_retries: Retries on transient errors — forwarded to ``AzureOpenAI``
-                     client (default: 2).  See :class:`~multixtract.providers.openai.OpenAIEmbedder`.
+                     client (default: 2).
+                     See :class:`~multixtract.providers.openai.OpenAIEmbedder`.
     """
 
     def __init__(

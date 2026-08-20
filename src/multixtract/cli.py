@@ -70,7 +70,6 @@ def main() -> None:
         format="%(levelname)s  %(message)s",
     )
 
-    from .batch import BatchConfig, BatchProcessor
     from .pipeline import Pipeline
     from .providers.storage import LocalDiskStore
 
@@ -101,7 +100,6 @@ def _is_directory(token: str) -> bool:
 
 def _run_single(args, pipeline) -> None:
     """Original single-file flow — output format unchanged for backward compat."""
-    import os
     from pathlib import Path
 
     path = Path(args.inputs[0]).resolve()

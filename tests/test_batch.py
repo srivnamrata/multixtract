@@ -3,13 +3,10 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock
 
-import pytest
-
-from multixtract.batch import BatchConfig, BatchProcessor, BatchResult, DocumentFailure
+from multixtract.batch import BatchConfig, BatchProcessor, BatchResult
 from multixtract.pipeline import ExtractionResult
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -83,7 +80,9 @@ class TestBatchProcessorPaths:
 
     def test_skipped_documents_counted_separately(self, tmp_path: Path) -> None:
         files = _pdf_files(tmp_path, 3)
-        pipeline = _make_pipeline(side_effects=[_skipped_result(), _skipped_result(), _skipped_result()])
+        pipeline = _make_pipeline(
+            side_effects=[_skipped_result(), _skipped_result(), _skipped_result()]
+        )
         processor = BatchProcessor(pipeline, BatchConfig(max_workers=1))
         result = processor.process_paths(iter(files))
         assert result.skipped == 3
@@ -240,7 +239,8 @@ class TestConcurrency:
             with lock:
                 active[0] += 1
                 peak[0] = max(peak[0], active[0])
-            import time; time.sleep(0.01)
+            import time
+            time.sleep(0.01)
             with lock:
                 active[0] -= 1
             return original_ok()

@@ -28,7 +28,7 @@ import logging
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Iterator, List, Optional, Sequence, Union
+from typing import Callable, Iterator, List, Optional, Sequence
 
 from .discovery import SUPPORTED_EXTENSIONS, InputResolver
 from .interfaces import DocumentSource

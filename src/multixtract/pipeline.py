@@ -17,7 +17,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+
+if TYPE_CHECKING:
+    from .batch import BatchResult
 
 from .chunking import build_index_document, chunk_document
 from .extraction import extract_document
@@ -161,7 +164,9 @@ class Pipeline:
                     degradations.append({"stage": "embed_image", "id": iid, "error": None})
             for chunk in chunks:
                 if chunk.get("embedding") is None:
-                    degradations.append({"stage": "embed_chunk", "id": chunk["chunk_id"], "error": None})
+                    degradations.append(
+                        {"stage": "embed_chunk", "id": chunk["chunk_id"], "error": None}
+                    )
 
         result = ExtractionResult(
             base_name=base_name,
