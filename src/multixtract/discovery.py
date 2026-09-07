@@ -32,30 +32,17 @@ log = logging.getLogger("multixtract.discovery")
 # Central extension registry
 # ---------------------------------------------------------------------------
 
-#: All extensions the built-in extractor registry understands (lower-case,
-#: dot-prefixed).  Discovery filters against this set so unsupported files are
-#: skipped silently rather than causing downstream ``ValueError``s.
-#:
-#: Keep in sync with the registrations in ``src/multixtract/extractors/__init__.py``.
-SUPPORTED_EXTENSIONS: FrozenSet[str] = frozenset({
-    # Documents
-    ".pdf",
-    ".docx", ".doc",
-    ".pptx", ".ppt",
-    ".xlsx", ".xlsm", ".xls", ".csv",
-    # Text / markup
-    ".txt", ".log", ".conf", ".ini",
-    ".md",
-    ".html", ".htm",
-    ".rtf",
-    ".epub",
-    # E-mail
-    ".eml",
-    # Images (treated as single-image documents)
-    ".png", ".jpg", ".jpeg", ".tiff", ".tif", ".webp", ".bmp",
-    # Legacy ODF
-    ".odt", ".odp", ".ods",
-})
+def get_supported_extensions() -> FrozenSet[str]:
+    """Return the lower-case, dot-prefixed extensions registered by built-ins."""
+    from .extractors import default_registry
+
+    return frozenset(default_registry.supported_extensions)
+
+
+def __getattr__(name: str):
+    if name == "SUPPORTED_EXTENSIONS":
+        return get_supported_extensions()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -77,7 +64,7 @@ class FileSource:
     ) -> None:
         self._path = path.resolve()
         self._supported = (
-            supported_extensions if supported_extensions is not None else SUPPORTED_EXTENSIONS
+            supported_extensions if supported_extensions is not None else get_supported_extensions()
         )
 
     def iter_paths(self) -> Iterator[Path]:
@@ -106,7 +93,7 @@ class DirectorySource:
     ) -> None:
         self._root = root.resolve()
         self._supported = (
-            supported_extensions if supported_extensions is not None else SUPPORTED_EXTENSIONS
+            supported_extensions if supported_extensions is not None else get_supported_extensions()
         )
 
     def iter_paths(self) -> Iterator[Path]:
@@ -150,7 +137,7 @@ class InputResolver:
         supported_extensions: Optional[FrozenSet[str]] = None,
     ) -> None:
         self._supported = (
-            supported_extensions if supported_extensions is not None else SUPPORTED_EXTENSIONS
+            supported_extensions if supported_extensions is not None else get_supported_extensions()
         )
 
     # ------------------------------------------------------------------
@@ -204,5 +191,9 @@ def discover(
         for path in discover(["report.pdf", "./docs"]):
             pipeline.process(path)
     """
-    resolver = InputResolver(supported_extensions=supported_extensions)
+    resolver = InputResolver(
+        supported_extensions=(
+            supported_extensions if supported_extensions is not None else get_supported_extensions()
+        )
+    )
     yield from resolver.iter_paths(list(inputs))

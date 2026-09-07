@@ -82,6 +82,13 @@ chunks = chunk_document(document, base_name="report")
 
 **Vision providers:** OpenAI · Azure OpenAI · Qwen2.5-VL · Llama 3.2 Vision · SmolVLM (CPU) · bring your own.
 
+Starter examples:
+
+* `python examples/starter_extract.py report.pdf` — extract one document and save raw JSON
+* `python examples/starter_pipeline.py report.pdf` — run the full local pipeline and write chunk files
+* `python examples/starter_batch.py ./docs report.pdf` — process a mix of files and directories with bounded concurrency
+* `python examples/quickstart.py report.pdf` — broader walkthrough with multiple patterns
+
 → [Full installation guide](https://srivnamrata.github.io/multixtract/usage/#install) · [Recipes](docs/recipes/) · [Provider setup](docs/providers/)
 
 ---

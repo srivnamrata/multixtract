@@ -5,6 +5,7 @@ core functions (:func:`extract_document`, :func:`chunk_document`), the extractor
 registry, and the provider interfaces. Concrete providers live in
 :mod:`multixtract.providers`; format extractors in :mod:`multixtract.extractors`.
 """
+from ._version import __version__
 from .batch import BatchConfig, BatchProcessor, BatchResult, DocumentFailure
 from .chunking import (
     build_index_document,
@@ -41,13 +42,6 @@ from .interfaces import (
     VisionResult,
 )
 from .pipeline import ExtractionResult, Pipeline, SplitStats
-
-try:
-    from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
-    from importlib.metadata import version as _version
-    __version__ = _version("multixtract")
-except _PackageNotFoundError:
-    __version__ = "0.1.3"
 
 __all__ = [
     # Pipeline

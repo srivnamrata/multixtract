@@ -46,6 +46,7 @@ class ExtractionResult:
 
     base_name: str
     document: Dict[str, Any]
+    skipped: bool = False
     chunks: List[Dict[str, Any]] = field(default_factory=list)
     image_index: List[Dict[str, Any]] = field(default_factory=list)
     filter_stats: Dict[str, int] = field(default_factory=dict)
@@ -108,7 +109,7 @@ class Pipeline:
             doc_key = f"{config.doc_json_subdir}/{base_name}.json"
             if self.store.exists(doc_key):
                 log.info("Skipping %s (output exists)", base_name)
-                return ExtractionResult(base_name=base_name, document={})
+                return ExtractionResult(base_name=base_name, document={}, skipped=True)
 
         # Phase 1 — extract + filter
         _filter = ImageFilterPipeline(

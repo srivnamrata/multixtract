@@ -3,7 +3,7 @@
 Runs extraction + chunking on one or more documents (or entire directories)
 and writes JSON to an output folder.  Supports PDF, DOCX, PPTX, XLSX, CSV,
 and legacy .doc/.ppt via LibreOffice.  Vision/embeddings are enabled only
-when an OpenAI API key is supplied, so the bare command works offline with
+when an AI provider is configured, so the bare command works offline with
 zero cloud setup.
 
 Usage examples::
@@ -50,9 +50,31 @@ def main() -> None:
         help="Max concurrent documents when processing a batch (default: 4).",
     )
     parser.add_argument(
+        "--provider",
+        choices=("openai", "azure-openai", "none"),
+        default=os.getenv("MULTIXTRACT_PROVIDER", ""),
+        help=(
+            "AI provider for vision/embeddings. Defaults to auto-detect: "
+            "OpenAI when an API key is supplied, Azure OpenAI when Azure env vars are set, "
+            "otherwise extraction-only."
+        ),
+    )
+    parser.add_argument(
+        "--api-key",
         "--openai-key",
-        default=os.getenv("OPENAI_API_KEY", ""),
-        help="OpenAI API key.  If omitted, runs extraction-only (no vision/embeddings).",
+        dest="api_key",
+        default="",
+        help="Provider API key. For OpenAI, falls back to OPENAI_API_KEY. For Azure OpenAI, falls back to AZURE_OPENAI_API_KEY.",
+    )
+    parser.add_argument(
+        "--azure-endpoint",
+        default=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
+        help="Azure OpenAI endpoint. Required when --provider=azure-openai unless AZURE_OPENAI_ENDPOINT is set.",
+    )
+    parser.add_argument(
+        "--azure-api-version",
+        default=os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21"),
+        help="Azure OpenAI API version (default: 2024-10-21).",
     )
     parser.add_argument("--vision-model", default="gpt-4o")
     parser.add_argument("--embed-model", default="text-embedding-3-large")
@@ -73,12 +95,7 @@ def main() -> None:
     from .pipeline import Pipeline
     from .providers.storage import LocalDiskStore
 
-    vision = embedder = None
-    if args.openai_key:
-        from .providers.openai import OpenAIEmbedder, OpenAIVisionModel
-        vision = OpenAIVisionModel(api_key=args.openai_key, model=args.vision_model)
-        embedder = OpenAIEmbedder(api_key=args.openai_key, model=args.embed_model)
-
+    vision, embedder = _build_ai_providers(args)
     pipeline = Pipeline(vision=vision, embedder=embedder, store=LocalDiskStore(args.out))
 
     # Single-file fast path: preserve the concise original output format and
@@ -91,6 +108,64 @@ def main() -> None:
 
     # Batch path: one or more files/directories.
     _run_batch(args, pipeline)
+
+
+def _resolve_provider(args) -> str:
+    provider = (args.provider or "").strip().lower()
+    if provider:
+        return provider
+    if args.api_key or os.getenv("OPENAI_API_KEY", ""):
+        return "openai"
+    if args.azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT", ""):
+        return "azure-openai"
+    return "none"
+
+
+def _build_ai_providers(args):
+    provider = _resolve_provider(args)
+    if provider == "none":
+        return None, None
+
+    if provider == "openai":
+        api_key = args.api_key or os.getenv("OPENAI_API_KEY", "")
+        if not api_key:
+            raise ValueError("provider 'openai' requires --api-key or OPENAI_API_KEY")
+        from .providers import OpenAIEmbedder, OpenAIVisionModel
+
+        return (
+            OpenAIVisionModel(api_key=api_key, model=args.vision_model),
+            OpenAIEmbedder(api_key=api_key, model=args.embed_model),
+        )
+
+    if provider == "azure-openai":
+        endpoint = args.azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT", "")
+        api_key = args.api_key or os.getenv("AZURE_OPENAI_API_KEY", "")
+        if not endpoint:
+            raise ValueError(
+                "provider 'azure-openai' requires --azure-endpoint or AZURE_OPENAI_ENDPOINT"
+            )
+        if not api_key:
+            raise ValueError(
+                "provider 'azure-openai' requires --api-key or AZURE_OPENAI_API_KEY"
+            )
+        from .providers import AzureOpenAIEmbedder, AzureOpenAIVisionModel
+
+        return (
+            AzureOpenAIVisionModel(
+                endpoint=endpoint,
+                api_key=api_key,
+                deployment=args.vision_model,
+                api_version=args.azure_api_version,
+            ),
+            AzureOpenAIEmbedder(
+                endpoint=endpoint,
+                api_key=api_key,
+                deployment=args.embed_model,
+                api_version=args.azure_api_version,
+            ),
+        )
+
+    raise ValueError(f"Unsupported provider: {provider}")
 
 
 def _is_directory(token: str) -> bool:
@@ -134,7 +209,7 @@ def _run_single(args, pipeline) -> None:
 def _run_batch(args, pipeline) -> None:
     """Batch flow for multiple inputs or a directory."""
     from .batch import BatchConfig, BatchProcessor
-    from .discovery import SUPPORTED_EXTENSIONS
+    from .discovery import get_supported_extensions
 
     config = BatchConfig(
         max_workers=args.workers,
@@ -142,7 +217,7 @@ def _run_batch(args, pipeline) -> None:
         split_chunks=args.split_chunks,
     )
     processor = BatchProcessor(pipeline, config=config)
-    result = processor.process_inputs(args.inputs, supported_extensions=SUPPORTED_EXTENSIONS)
+    result = processor.process_inputs(args.inputs, supported_extensions=get_supported_extensions())
 
     print(
         f"Batch complete: {result.succeeded} extracted, "

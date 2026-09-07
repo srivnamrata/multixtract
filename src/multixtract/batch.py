@@ -9,8 +9,9 @@ Design principles
   as worker slots become free; the full tree is never materialised in memory.
 * **Failure isolation** — a single bad document logs an error and records a
   :class:`DocumentFailure`; remaining documents continue processing.
-* **Structured progress** — ``INFO`` logs report ``Discovered N files``,
-  ``Processing M/N``, and per-failure summaries.
+* **Structured progress** — ``INFO`` logs report batch start/completion and
+  per-document progress using truthful streaming counters rather than a
+  pre-counted final total.
 
 Usage::
 
@@ -25,13 +26,16 @@ Usage::
 from __future__ import annotations
 
 import logging
-from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, as_completed, wait
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Iterator, List, Optional, Sequence
+from typing import TYPE_CHECKING, FrozenSet, Iterator, List, Optional, Protocol, Sequence
 
-from .discovery import SUPPORTED_EXTENSIONS, InputResolver
+from .discovery import InputResolver, get_supported_extensions
 from .interfaces import DocumentSource
+
+if TYPE_CHECKING:
+    from .pipeline import ExtractionResult
 
 log = logging.getLogger("multixtract.batch")
 
@@ -39,6 +43,25 @@ log = logging.getLogger("multixtract.batch")
 # ---------------------------------------------------------------------------
 # Config & result types
 # ---------------------------------------------------------------------------
+
+class ProgressCallback(Protocol):
+    """Callable invoked after each document completes."""
+
+    def __call__(self, path: Path, result_or_exc: ExtractionResult | Exception) -> None:
+        ...
+
+
+class PipelineLike(Protocol):
+    """Minimal pipeline contract required by :class:`BatchProcessor`."""
+
+    def process(
+        self,
+        doc_path: str,
+        skip_if_exists: bool = True,
+        split_chunks: bool = False,
+    ) -> ExtractionResult:
+        ...
+
 
 @dataclass
 class BatchConfig:
@@ -50,6 +73,10 @@ class BatchConfig:
     skip_if_exists: bool = True
     #: When True, call ``pipeline.split_chunks_file`` after each document.
     split_chunks: bool = False
+    #: Maximum number of submitted futures (running + queued). Defaults to
+    #: ``max_workers`` so the executor does not build an extra queue by default.
+    #: Set a larger value only when deliberate prefetching is desired.
+    submission_window: Optional[int] = None
     #: Optional progress callback — called after every document completes
     #: (succeeded, skipped, or failed).  Signature::
     #:
@@ -59,7 +86,13 @@ class BatchConfig:
     #: *result_or_exc* is the :class:`~multixtract.pipeline.ExtractionResult` on
     #: success/skip, or the :class:`Exception` on failure.  Use this to wire a
     #: ``tqdm`` bar, Spark broadcast variable, or external logging system.
-    on_progress: Optional[Callable] = None
+    on_progress: Optional[ProgressCallback] = None
+
+    def __post_init__(self) -> None:
+        if self.max_workers < 1:
+            raise ValueError("max_workers must be >= 1")
+        if self.submission_window is not None and self.submission_window < self.max_workers:
+            raise ValueError("submission_window must be >= max_workers")
 
 
 @dataclass
@@ -88,7 +121,11 @@ class BatchResult:
 # BatchProcessor
 # ---------------------------------------------------------------------------
 
-def _safe_callback(cb: Callable, path: Path, result_or_exc: object) -> None:
+def _safe_callback(
+    cb: ProgressCallback,
+    path: Path,
+    result_or_exc: ExtractionResult | Exception,
+) -> None:
     try:
         cb(path, result_or_exc)
     except Exception as cb_exc:  # noqa: BLE001
@@ -103,11 +140,11 @@ class BatchProcessor:
     pool, collecting results and failures.
 
     Args:
-        pipeline: A configured :class:`~multixtract.pipeline.Pipeline` instance.
+        pipeline: Any object implementing the minimal ``process(...)`` contract.
         config:   :class:`BatchConfig` — defaults to 4 workers, skip-if-exists on.
     """
 
-    def __init__(self, pipeline, config: Optional[BatchConfig] = None) -> None:
+    def __init__(self, pipeline: PipelineLike, config: Optional[BatchConfig] = None) -> None:
         self._pipeline = pipeline
         self._config = config or BatchConfig()
 
@@ -119,7 +156,7 @@ class BatchProcessor:
         self,
         inputs: Sequence[str],
         *,
-        supported_extensions=None,
+        supported_extensions: Optional[FrozenSet[str]] = None,
     ) -> BatchResult:
         """Discover and process documents from a mixed list of file/directory paths.
 
@@ -128,7 +165,11 @@ class BatchProcessor:
             supported_extensions: Override the supported extension set for discovery.
         """
         resolver = InputResolver(
-            supported_extensions=supported_extensions or SUPPORTED_EXTENSIONS
+            supported_extensions=(
+                supported_extensions
+                if supported_extensions is not None
+                else get_supported_extensions()
+            )
         )
         path_iter = resolver.iter_paths(inputs)
         return self._run(path_iter)
@@ -153,30 +194,35 @@ class BatchProcessor:
         config = self._config
         result = BatchResult()
 
-        # We consume the iterator lazily: submit to the pool as slots free.
-        # ThreadPoolExecutor.submit is non-blocking, but we cap the queue depth
-        # to max_workers * 2 so we never hold more than that many pending paths
-        # in memory at once.  This is achieved by submitting in a window loop.
+        # We consume the iterator lazily: pull a new path only after the live
+        # future window drops below the configured limit. A plain ``for`` loop
+        # would fetch the next path before we have a chance to block, so we
+        # advance the iterator manually to preserve backpressure. By default the
+        # window matches ``max_workers`` exactly, avoiding an extra executor queue.
         cap = config.max_workers
+        window = config.submission_window or cap
         total_submitted = 0
         futures: dict[Future, Path] = {}
+        path_iter = iter(path_iter)
 
         with ThreadPoolExecutor(max_workers=cap) as pool:
-            for path in path_iter:
+            while True:
+                while len(futures) >= window:
+                    done_futs, _ = wait(futures, return_when=FIRST_COMPLETED)
+                    for fut in done_futs:
+                        self._collect(fut, futures.pop(fut), result, total_submitted)
+
+                try:
+                    path = next(path_iter)
+                except StopIteration:
+                    break
+
                 total_submitted += 1
                 if total_submitted == 1:
                     log.info("Starting batch processing")
 
                 fut = pool.submit(self._process_one, path)
                 futures[fut] = path
-
-                # Drain completed futures when the live queue fills up so we
-                # bound memory usage (each in-flight document may hold image
-                # bytes, document dict, etc.).
-                if len(futures) >= cap * 2:
-                    done_futs = [f for f in futures if f.done()]
-                    for f in done_futs:
-                        self._collect(f, futures.pop(f), result, total_submitted)
 
             # Drain remaining futures.
             for fut in as_completed(futures):
@@ -192,7 +238,7 @@ class BatchProcessor:
 
         return result
 
-    def _process_one(self, path: Path):
+    def _process_one(self, path: Path) -> ExtractionResult:
         """Call pipeline.process for one document; return the ExtractionResult."""
         return self._pipeline.process(
             str(path),
@@ -202,7 +248,7 @@ class BatchProcessor:
 
     def _collect(
         self,
-        fut: Future,
+        fut: Future[ExtractionResult],
         path: Path,
         result: BatchResult,
         total_submitted: int,
@@ -210,16 +256,14 @@ class BatchProcessor:
         cb = self._config.on_progress
         try:
             extraction = fut.result()
-            # Pipeline.process returns an ExtractionResult with document={}
-            # when skip_if_exists fired — count those separately.
-            if extraction.document == {}:
+            if extraction.skipped:
                 result.skipped += 1
                 log.debug("Skipped %s (already exists)", path.name)
             else:
                 result.succeeded += 1
                 processed = result.succeeded + result.failed + result.skipped
                 log.info(
-                    "Processed %s (%d/%d)",
+                    "Processed %s (%d completed, %d submitted so far)",
                     path.name, processed, total_submitted,
                 )
             if cb is not None:

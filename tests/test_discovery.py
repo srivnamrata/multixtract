@@ -11,7 +11,10 @@ from multixtract.discovery import (
     FileSource,
     InputResolver,
     discover,
+    get_supported_extensions,
 )
+from multixtract.extractors import register_extractor
+from multixtract.extractors.registry import default_registry
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -136,6 +139,25 @@ class TestDirectorySource:
 # ---------------------------------------------------------------------------
 # InputResolver
 # ---------------------------------------------------------------------------
+
+class TestSupportedExtensions:
+    def test_reflects_registered_extractors(self) -> None:
+        class CustomExtractor:
+            extensions = (".custom-doc",)
+
+            def extract(self, path: str, image_filter=None):
+                raise NotImplementedError
+
+        previous = default_registry._by_ext.pop(".custom-doc", None)
+        try:
+            register_extractor(CustomExtractor())
+            assert ".custom-doc" in get_supported_extensions()
+        finally:
+            if previous is None:
+                default_registry._by_ext.pop(".custom-doc", None)
+            else:
+                default_registry._by_ext[".custom-doc"] = previous
+
 
 class TestInputResolver:
     def test_single_file_input(self, tmp_path: Path) -> None:
