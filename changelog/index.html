@@ -1,0 +1,846 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Vendor-neutral document extraction for search & RAG">
+      
+      
+      
+        <link rel="canonical" href="https://srivnamrata.github.io/multixtract/changelog/">
+      
+      
+        <link rel="prev" href="../api/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Changelog - multixtract</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#changelog" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="multixtract" class="md-header__button md-logo" aria-label="multixtract" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            multixtract
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Changelog
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/srivnamrata/multixtract" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    srivnamrata/multixtract
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../usage/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Usage Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../api/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  API Reference
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Changelog
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="multixtract" class="md-nav__button md-logo" aria-label="multixtract" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    multixtract
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/srivnamrata/multixtract" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    srivnamrata/multixtract
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Usage Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#013-2026-08-19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.1.3] — 2026-08-19
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.1.3] — 2026-08-19">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#012-2026-08-15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.1.2] — 2026-08-15
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.1.2] — 2026-08-15">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#011-2026-08-01" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.1.1] — 2026-08-01
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.1.1] — 2026-08-01">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Permanent link">&para;</a></h1>
+<p>All notable changes to this project will be documented here.
+Format follows <a href="https://keepachangelog.com/en/1.1.0/">Keep a Changelog</a>.
+This project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
+<h2 id="013-2026-08-19">[0.1.3] — 2026-08-19<a class="headerlink" href="#013-2026-08-19" title="Permanent link">&para;</a></h2>
+<h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">&para;</a></h3>
+<p><strong>Directory &amp; batch support</strong>
+- <code>Pipeline.process_batch(*inputs, max_workers=4)</code> — process one or more files and/or directories in a single call; thin facade over <code>BatchProcessor</code> with failure isolation and resume support
+- <code>BatchProcessor</code> — concurrent document processor; accepts <code>FileSource</code>, <code>DirectorySource</code>, custom <code>DocumentSource</code>, or a raw <code>Iterator[Path]</code>; entry points: <code>process_inputs()</code>, <code>process_source()</code>, <code>process_paths()</code>
+- <code>BatchConfig(max_workers, skip_if_exists, split_chunks, on_progress)</code> — tuning knobs for <code>BatchProcessor</code>
+- <code>BatchResult(succeeded, failed, skipped, failures, total)</code> — aggregate outcome of a batch run
+- <code>DocumentFailure(path, error)</code> — per-document failure record
+- <code>InputResolver</code> / <code>FileSource</code> / <code>DirectorySource</code> / <code>discover()</code> — lazy recursive discovery of supported documents from mixed file/directory inputs
+- <code>SUPPORTED_EXTENSIONS</code> — frozenset of all file extensions the default registry handles
+- CLI extended to accept directories and mixed inputs (<code>multixtract report.pdf ./docs ./more</code>)
+- CLI <code>--workers N</code> flag — max concurrent documents (default: 4)</p>
+<p><strong>Formatters (<code>multixtract.formatters</code>)</strong>
+- <code>AzureAISearchFormatter.from_result(result, timestamp, skip_empty)</code> — converts an in-process <code>ExtractionResult</code> to a list of flat Azure AI Search documents
+- <code>AzureAISearchFormatter.from_chunks_file(chunks_data, timestamp, skip_empty)</code> — same, but from a <code>_chunks.json</code> dict (post-processing / offline path)
+- <code>AzureAISearchFormatter.index_schema(index_name, vector_dim)</code> — returns a fully configured <code>azure-search-documents</code> <code>SearchIndex</code> object with hybrid (keyword + vector) fields; deferred import so <code>azure-search-documents</code> is not required unless this method is called</p>
+<p><strong>Structured error tracking</strong>
+- <code>ExtractionResult.degradations: list[dict]</code> — partial failures that did not abort the run; each entry: <code>{"stage": "vision"|"embed_image"|"embed_chunk", "id": str, "error": str|None}</code>; populated by <code>Pipeline.process()</code> from three sources: vision exceptions, <code>None</code> image embeddings, <code>None</code> chunk embeddings
+- <code>VisionModel.analyze</code> protocol contract updated: providers now <strong>raise on failure</strong> (previously "must not raise") — the pipeline coordinator catches and records errors in <code>degradations</code></p>
+<p><strong>Progress callbacks</strong>
+- <code>BatchConfig.on_progress: Callable[[Path, ExtractionResult | Exception], None] | None</code> — called after every document completes (succeeded, skipped, or failed); receives the <code>Path</code> and the result or exception; callback exceptions are caught and logged as warnings so a crashing callback never aborts a batch</p>
+<p><strong><code>PipelineConfig.from_env(prefix="MULTIXTRACT_")</code></strong>
+- Classmethod that reads <code>MULTIXTRACT_&lt;FIELD_NAME_UPPER&gt;</code> environment variables and returns a <code>PipelineConfig</code> with those values applied; integer fields are coerced; malformed or absent vars fall back to dataclass defaults; prefix is configurable</p>
+<p><strong>Token counting</strong>
+- <code>count_tokens(text) -&gt; int</code> — tiktoken-based token count (<code>cl100k_base</code>) when <code>tiktoken</code> is installed; falls back to the fast heuristic; used for all final <code>token_cnt</code> stamps on chunks
+- <code>estimate_tokens(text) -&gt; int</code> — fast heuristic (unchanged); retained for the splitting hot path
+- New optional extra <code>[tiktoken]</code>: <code>pip install "multixtract[tiktoken]"</code>
+- Both exported from top-level <code>multixtract</code></p>
+<p><strong>Reliability</strong>
+- <code>OpenAIVisionModel(max_retries=2)</code> and <code>OpenAIEmbedder(max_retries=2)</code> — <code>max_retries</code> forwarded directly to the OpenAI SDK client constructor; SDK handles <code>Retry-After</code>/<code>retry-after-ms</code> headers, exponential backoff, and ±25% jitter at the HTTP layer
+- <code>AzureOpenAIVisionModel(max_retries=2)</code> and <code>AzureOpenAIEmbedder(max_retries=2)</code> — same, via <code>AzureOpenAI(max_retries=max_retries)</code></p>
+<p><strong>Content deduplication</strong>
+- Image chunks: <code>_deduplicate_image_content</code> now applied inside <code>build_image_content</code> (creation time) so stored chunks are always clean; <code>build_index_document</code> retains a defensive pass for external/older <code>_chunks.json</code> files</p>
+<h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>OpenAI SDK version constraint</strong>: <code>openai&gt;=1.57.0,&lt;4.0</code> (was <code>&lt;3.0</code>) — aligns with current OpenAI model releases</li>
+<li><strong><code>VisionModel.analyze</code> protocol</strong>: raises on failure instead of returning an empty <code>VisionResult</code>; hand-rolled <code>try/except</code> removed from <code>OpenAIVisionModel.analyze</code></li>
+<li><strong>Retry handling</strong>: removed hand-rolled <code>_retry</code> / <code>_is_permanent</code> from OpenAI providers; SDK retry is strictly more correct (correct 4xx/5xx discrimination, header-aware sleep, no double-retry compounding)</li>
+<li><strong><code>ExtractionResult</code></strong>: new <code>degradations</code> field (default <code>[]</code>) — backward compatible; existing code constructing <code>ExtractionResult</code> positionally is unaffected</li>
+</ul>
+<h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>examples/azure_ai_search/ingest.py</code>: field names corrected (<code>id</code>/<code>content_vector</code> — were <code>chunk_id</code>/<code>embedding</code>); spurious <code>file_path=</code>/<code>file_name=</code> kwargs removed from <code>Pipeline.process()</code> call</li>
+</ul>
+<h2 id="012-2026-08-15">[0.1.2] — 2026-08-15<a class="headerlink" href="#012-2026-08-15" title="Permanent link">&para;</a></h2>
+<h3 id="added_1">Added<a class="headerlink" href="#added_1" title="Permanent link">&para;</a></h3>
+<p><strong>Individual chunk splitting</strong>
+- <code>Pipeline.process()</code> — new <code>split_chunks: bool = False</code> parameter; when <code>True</code>, automatically splits <code>_chunks.json</code> into individual per-chunk documents after processing and populates <code>result.split_stats</code>
+- <code>Pipeline.split_chunks_file(chunks_data, timestamp, skip_if_exists, upload_workers)</code> — standalone method to split any <code>_chunks.json</code> dict into individual flat documents; parallel writes via <code>upload_workers</code> (default 4)
+- <code>build_index_document(chunk, header, timestamp)</code> — public function that transforms a raw chunk dict into a flat, AI-Search-optimized document: renames <code>embedding</code> → <code>content_vector</code>, promotes <code>metadata</code> fields to top level, adds <code>id</code>, <code>doc_id</code>, <code>file_name</code>, <code>file_path</code>, <code>file_type</code>, <code>total_pgs</code>, <code>last_updated</code>
+- <code>SplitStats</code> dataclass — returned by <code>split_chunks_file</code>; fields: <code>created</code>, <code>skipped</code>, <code>failed</code>, <code>deduped</code></p>
+<p><strong><code>ExtractionResult</code></strong>
+- New optional field <code>split_stats: SplitStats | None</code> — populated when <code>split_chunks=True</code></p>
+<p><strong><code>PipelineConfig</code></strong>
+- New field <code>individual_chunks_subdir: str = "individual_chunks"</code> — storage sub-folder for per-chunk documents</p>
+<p><strong>Public API</strong>
+- <code>safe_index_key(s)</code> — sanitizes any string to a valid Azure AI Search document key (<code>[A-Za-z0-9_\-=]</code>); applied automatically to all <code>chunk_id</code> and <code>id</code> values
+- <code>build_index_document</code>, <code>SplitStats</code>, <code>safe_index_key</code> exported from top-level <code>multixtract</code></p>
+<p><strong>Chunking internals</strong>
+- <code>_chunks.json</code> schema: <code>{"_header": {"file_path", "file_name", "total_pgs"}, "chunks": [...]}</code>; each chunk has <code>chunk_id</code>, <code>chunk_type</code>, <code>pg_num</code>, <code>chunk_idx</code>, <code>content</code>, <code>token_cnt</code>, <code>metadata</code> (nested, type-specific), <code>embedding</code>
+- Token count computed once per chunk (no double <code>estimate_tokens</code> call)
+- <code>_splits_from_buffer()</code> internal helper returns <code>(content, token_cnt)</code> pairs; both code paths (elements + legacy) share it</p>
+<h3 id="fixed_1">Fixed<a class="headerlink" href="#fixed_1" title="Permanent link">&para;</a></h3>
+<p><strong>Excel extractor</strong>
+- <code>_is_metadata_row</code>: replaced double <code>str(c).strip()</code> evaluation with a walrus-operator assignment so the stripped string is computed once and reused in the filter — eliminates a subtle correctness risk when the cell value has side effects and improves readability.
+- <code>_extract_hyperlinks</code>: probes <code>ws.hyperlinks</code> for accessibility before iterating; falls back to per-cell <code>.hyperlink</code> attribute scanning when the collection is unavailable or raises, preventing silent data loss on worksheets with unusual hyperlink formats.
+- Type narrowing in <code>_build_pages</code> (<code>_pg</code> intermediate variable) — removes a mypy <code>int | None</code> incompatible-assignment error that appeared on Python 3.10.</p>
+<p><strong>Memory / OOM guards</strong> (all extractors, pipeline, image utilities)
+- CSV extractor: switched from eager full-file load to streaming row-by-row read; honours <code>_MAX_ROWS_PER_SHEET</code> with early <code>break</code> so large CSVs never materialise fully in memory.
+- PDF extractor: changed <code>converted[key]</code> and <code>raster_cache[key]</code> lookups to <code>.pop()</code> so raw image bytes are released immediately after use instead of persisting for the lifetime of the page loop.
+- DOCX / PPTX / XLSX extractors: call <code>.clear()</code> on <code>vector_items</code> and <code>wdp_items</code> lists after the LibreOffice batch conversion returns; use <code>.pop()</code> when consuming the <code>converted</code> dict so each image's bytes are freed as soon as they are encoded.
+- Pipeline vision worker: releases <code>image_bytes</code> per-future (inside <code>as_completed</code>) rather than after all futures complete, reducing peak memory proportional to <code>vision_workers</code>.
+- <code>_image_utils.py</code> — <code>batch_convert_vectors_to_png</code>: deletes <code>raw</code> bytes after writing to the temp directory (bytes are now on disk; no need to keep them in RAM before spawning LibreOffice); <code>decode_wdp_to_png</code>: deletes the intermediate numpy array returned by <code>imagecodecs.jpegxr_decode</code> before PIL takes ownership of the same pixel data.</p>
+<h3 id="changed_1">Changed<a class="headerlink" href="#changed_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Coverage configuration</strong> (<code>pyproject.toml</code>): added <code>[tool.coverage.report] exclude_lines</code> patterns for GPU-dependent model-loading branches (<code>AutoProcessor.from_pretrained</code>, <code>MllamaForConditionalGeneration.from_pretrained</code>, <code>Qwen2_5_VLForConditionalGeneration.from_pretrained</code>, <code>AutoModelForVision2Seq.from_pretrained</code>, CUDA device/dtype selection). Provider source files remain annotation-free; exclusions are declared centrally in config.</li>
+</ul>
+<h3 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Replaced hollow mock-heavy tests in <code>tests/test_coverage_gaps.py</code> with 53 honest tests that exercise real code paths using actual fixture files and in-memory inputs.</li>
+<li>New fixtures: <code>tests/fixtures/hidden_cols.xlsx</code> (XLSX with a hidden column to verify exclusion), <code>tests/fixtures/large.xlsx</code> and <code>tests/fixtures/large.csv</code> (10 001-row files to verify truncation behaviour).</li>
+<li>Adopted correct <code>monkeypatch.setitem(sys.modules, …)</code> pattern for optional-dependency absence tests; import class before patching to preserve class identity in registry assertions; no module reloads.</li>
+</ul>
+<h2 id="011-2026-08-01">[0.1.1] — 2026-08-01<a class="headerlink" href="#011-2026-08-01" title="Permanent link">&para;</a></h2>
+<h3 id="added_2">Added<a class="headerlink" href="#added_2" title="Permanent link">&para;</a></h3>
+<p><strong>Core extraction</strong>
+- <code>extract_document()</code> — text, tables, and filtered images from PDF, Word (.docx), PowerPoint (.pptx), Excel/CSV (.xlsx/.csv)
+- Legacy <code>.doc</code> / <code>.ppt</code> support via headless LibreOffice conversion
+- <code>chunk_document()</code> — sliding-window text chunks, per-table Markdown chunks, per-image chunks
+- <code>split_text_into_chunks()</code> — standalone sentence-boundary-aware text splitter
+- <code>table_to_markdown()</code> — serialize extracted tables to Markdown</p>
+<p><strong>Image filtering (<code>ImageFilterPipeline</code>)</strong>
+- Dimension filter (configurable major/minor pixel thresholds)
+- Solid-colour and tiny-icon rejection (perceptual quality checks)
+- Reference-logo deduplication via perceptual hash (<code>reference_img_dir</code>)
+- Cross-page duplicate tracking via xref/media-path deduplication
+- Vector image pre-conversion (EMF/WMF/SVG → PNG via LibreOffice)
+- JPEG-XR / WDP decoding via <code>imagecodecs</code> (<code>[imaging]</code> extra)</p>
+<p><strong>Pipeline (<code>Pipeline</code>, <code>PipelineConfig</code>)</strong>
+- End-to-end orchestration: extract → filter → vision → chunk → embed → store
+- All providers optional: <code>vision=None</code>, <code>embedder=None</code>, <code>store=None</code>
+- Parallel vision calls (<code>vision_workers</code>), batched embeddings
+- Resume support via <code>skip_if_exists</code> (skips documents already in the store)
+- Configurable storage sub-folder layout</p>
+<p><strong>Vision providers</strong> (cloud)
+- <code>OpenAIVisionModel</code> — GPT-4o and compatible models (<code>[openai]</code>)
+- <code>AzureOpenAIVisionModel</code> — Azure OpenAI deployment (<code>[azure]</code>)
+- Custom <code>system_prompt</code>, <code>max_tokens</code>, <code>temperature</code>, shared <code>client</code> support</p>
+<p><strong>Vision providers</strong> (local / offline)
+- <code>Qwen2VLVisionModel</code> — Qwen2.5-VL-7B/3B, recommended for document understanding (<code>[qwen2vl]</code>)
+- <code>SmolVLMVisionModel</code> — SmolVLM 2.2B, CPU-friendly (<code>[smolvlm]</code>)
+- <code>Llama32VisionModel</code> — Llama 3.2 Vision 11B/90B (<code>[llama]</code>)</p>
+<p><strong>Embedding providers</strong>
+- <code>OpenAIEmbedder</code> — OpenAI embeddings API (<code>[openai]</code>)
+- <code>AzureOpenAIEmbedder</code> — Azure OpenAI embeddings deployment (<code>[azure]</code>)</p>
+<p><strong>Storage providers</strong>
+- <code>LocalDiskStore</code> — writes JSON and image files to the local filesystem
+- <code>AzureBlobStore</code> — Azure Blob Storage with key, service principal, or <code>DefaultAzureCredential</code> auth (<code>[azure]</code>)</p>
+<p><strong>Extensibility</strong>
+- <code>DocumentExtractor</code> protocol — add any file format with <code>register_extractor()</code>
+- <code>VisionModel</code> protocol — plug in any vision model (Tesseract, Claude, Gemini, …)
+- <code>Embedder</code> protocol — plug in any embedding model (sentence-transformers, Cohere, …)
+- <code>BlobStore</code> protocol — plug in any storage backend (S3, GCS, …)</p>
+<p><strong>CLI</strong>
+- <code>multixtract &lt;file&gt;</code> — extract any supported document to JSON; vision/embeddings enabled when <code>OPENAI_API_KEY</code> is set</p>
+<p><strong>Packaging</strong>
+- <code>py.typed</code> marker — fully typed, compatible with mypy and pyright
+- Optional extras: <code>[pdf]</code>, <code>[docx]</code>, <code>[pptx]</code>, <code>[xlsx]</code>, <code>[imaging]</code>, <code>[openai]</code>, <code>[azure]</code>, <code>[qwen2vl]</code>, <code>[smolvlm]</code>, <code>[llama]</code>, <code>[dev]</code>, <code>[all]</code>
+- Core dependencies: Pillow, ImageHash only</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "content.code.copy", "toc.integrate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
